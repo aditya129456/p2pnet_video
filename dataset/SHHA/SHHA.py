@@ -11,14 +11,30 @@ import scipy.io as io
 class SHHA(Dataset):
     def __init__(self, data_root, transform=None, train=False, patch=False, flip=False):
         self.root_path = data_root
-        self.train_lists = open('/content/drive/MyDrive/CV-PROJECT/list.txt', 'r').read()
-        self.eval_list = open('/content/drive/MyDrive/CV-PROJECT/tlist.txt','r').read()
+
+        # search for train and eval list files within data_root
+        train_list_candidates = ['train_list.txt', 'list.txt']
+        eval_list_candidates = ['val_list.txt', 'tlist.txt', 'test_list.txt']
+
+        self.train_lists = ""
+        for name in train_list_candidates:
+            p = os.path.join(data_root, name)
+            if os.path.exists(p):
+                self.train_lists = open(p, 'r').read()
+                break
+
+        self.eval_list = ""
+        for name in eval_list_candidates:
+            p = os.path.join(data_root, name)
+            if os.path.exists(p):
+                self.eval_list = open(p, 'r').read()
+                break
         
         # there may exist multiple list files
         if train:
-            self.img_list_file = self.train_lists.split('\n')
+            self.img_list_file = [l.strip() for l in self.train_lists.split('\n') if l.strip()]
         else:
-            self.img_list_file = self.eval_list.split('\n')
+            self.img_list_file = [l.strip() for l in self.eval_list.split('\n') if l.strip()]
 
         self.img_map = {}
         self.img_list = []
@@ -65,7 +81,7 @@ class SHHA(Dataset):
             scale = random.uniform(*scale_range)
             # scale the image and points
             if scale * min_size > 128:
-                img = torch.nn.functional.upsample_bilinear(img.unsqueeze(0), scale_factor=scale).squeeze(0)
+                img = torch.nn.functional.interpolate(img.unsqueeze(0), scale_factor=scale, mode='bilinear', align_corners=False).squeeze(0)
                 point *= scale
         # random crop augumentaiton
         if self.train and self.patch:
@@ -87,7 +103,10 @@ class SHHA(Dataset):
         target = [{} for i in range(len(point))]
         for i, _ in enumerate(point):
             target[i]['point'] = torch.Tensor(point[i])
-            image_id = int(img_path.split('/')[-1].split('.')[0].split('_')[-1])
+            fname = os.path.basename(img_path)
+            base = os.path.splitext(fname)[0]
+            digits = ''.join(filter(str.isdigit, base))
+            image_id = int(digits) if digits else (index + 1)
             image_id = torch.Tensor([image_id]).long()
             target[i]['image_id'] = image_id
             target[i]['labels'] = torch.ones([point[i].shape[0]]).long()

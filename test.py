@@ -71,45 +71,62 @@ def main(args, debug=False):
         standard_transforms.ToTensor(), 
         standard_transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    all_point=[]
-    c=1
+    all_point = []
     img_path = args.images_path
-    labels_path=os.path.join(args.images_path,'Labels.txt')
-    labels=open(labels_path,'r')
-    groundtruth=[]
-    for x in labels:
-      groundtruth.append(int(x))
-    # load the images
+    groundtruth = {}
+    labels_path = os.path.join(args.images_path, 'Labels.txt')
+    if os.path.exists(labels_path):
+        with open(labels_path, 'r') as labels:
+            for idx, x in enumerate(labels):
+                val = x.strip()
+                if val:
+                    groundtruth[idx + 1] = int(val)
+
+    # find all valid image files
+    valid_exts = ('.jpg', '.jpeg', '.png', '.bmp')
+    image_files = sorted([f for f in os.listdir(img_path) if f.lower().endswith(valid_exts)])
     
-    #for filename in os.listdir(img_path)[:3]:
-    for filename in range(1,201):
-        filename=f"{filename:03}"
-        fname=np.copy(filename)
-        fname=str(fname)+'.jpg'
-        filename=int(filename)
-        #img = cv2.imread(os.path.join(folder,filename))
-        img_raw = Image.open(os.path.join(img_path,fname)).convert('RGB')
+    txt_file = None
+    if args.predicts_txt_dir:
+        txt_dir = os.path.dirname(args.predicts_txt_dir)
+        if txt_dir:
+            os.makedirs(txt_dir, exist_ok=True)
+        txt_file = open(args.predicts_txt_dir, "w+")
+
+    resample_mode = Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.ANTIALIAS
+
+    for idx, fname in enumerate(image_files):
+        img_full_path = os.path.join(img_path, fname)
+        if os.path.getsize(img_full_path) < 100:
+            continue
+        try:
+            img_raw = Image.open(img_full_path).convert('RGB')
+        except Exception as e:
+            print(f"Skipping unreadable image {fname}: {e}")
+            continue
         # round the size
         width, height = img_raw.size
-        if width>2000 or height>2000:
-          r=width/height
-          width=2000
-          height=int(2000/r)
+        if width > 2000 or height > 2000:
+            r = width / height
+            width = 2000
+            height = int(2000 / r)
         new_width = width // 128 * 128
         new_height = height // 128 * 128
 
-        print('img{}'.format(filename))
-        img_raw = img_raw.resize((new_width, new_height), Image.ANTIALIAS)
-        # pre-proccessing
+        filename_base = os.path.splitext(fname)[0]
+        digits = ''.join(filter(str.isdigit, filename_base))
+        num_id = int(digits) if digits else (idx + 1)
+
+        print('Processing {}: {}x{} -> {}x{}'.format(fname, width, height, new_width, new_height))
+        img_raw = img_raw.resize((new_width, new_height), resample_mode)
+        # pre-processing
         img = transform(img_raw)
-        
 
         samples = torch.Tensor(img).unsqueeze(0)
         samples = samples.to(device)
         # run inference
         outputs = model(samples)
         outputs_scores = torch.nn.functional.softmax(outputs['pred_logits'], -1)[:, :, 1][0]
-
         outputs_points = outputs['pred_points'][0]
 
         threshold = args.threshold
@@ -117,48 +134,47 @@ def main(args, debug=False):
         points = outputs_points[outputs_scores > threshold].detach().cpu().numpy().tolist()
         predict_cnt = int((outputs_scores > threshold).sum())
 
-        outputs_scores = torch.nn.functional.softmax(outputs['pred_logits'], -1)[:, :, 1][0]
-        
-        outputs_points = outputs['pred_points'][0]
         # draw the predictions
-        if new_width<1000:
-          size = 1
-        elif new_width>1000 and new_width<1500:
-          size=2
-        elif new_width>1500:
-          size=3
+        if new_width < 1000:
+            size = 1
+        elif 1000 <= new_width < 1500:
+            size = 2
         else:
-          size=1
+            size = 3
         img_to_draw = cv2.cvtColor(np.array(img_raw), cv2.COLOR_RGB2BGR)
 
         all_point.append(points)
         for p in points:
             img_to_draw = cv2.circle(img_to_draw, (int(p[0]), int(p[1])), size, (0, 0, 255), -1)
-        # save the visualized image
-        predict=np.shape(points)[0]
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        # fontScale
-        fontScale = 0.5
-        # Yellow color in BGR
-        color = (0,250,255)
-        # Line thickness of 2 px
-        thickness = 2
-        img_to_draw = cv2.putText(img_to_draw,'predict={}'.format(predict),(50,50),font,fontScale, color, thickness, cv2.LINE_AA)
-        gr=groundtruth[filename-1]
-        img_to_draw = cv2.putText(img_to_draw,'groundtruth={}'.format(gr),(50,70),font,fontScale, color, thickness, cv2.LINE_AA)
-        
-        if not os.path.isdir(args.output_dir):
-          os.makedirs(args.output_dir)
 
-        cv2.imwrite(os.path.join(args.output_dir, 'pred{}.jpg'.format(filename)), img_to_draw)
-        if c==1:
-          file = open(args.predicts_txt_dir, "w+")
-        c+=1
-        file.write("img{}  pre={}  gr={}\n".format(int(filename),predict,gr))
-        
-        if c==201:
-          all_point=np.array(all_point)
-          np.save(os.path.join(args.predicts_point_dir,'points.npy'),all_point)
+        # save the visualized image
+        predict = len(points)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        fontScale = 0.5
+        color = (0, 250, 255)  # Yellow in BGR
+        thickness = 2
+        img_to_draw = cv2.putText(img_to_draw, 'predict={}'.format(predict), (50, 50), font, fontScale, color, thickness, cv2.LINE_AA)
+
+        if num_id in groundtruth:
+            gr = groundtruth[num_id]
+            img_to_draw = cv2.putText(img_to_draw, 'groundtruth={}'.format(gr), (50, 70), font, fontScale, color, thickness, cv2.LINE_AA)
+        else:
+            gr = "N/A"
+
+        if args.output_dir:
+            os.makedirs(args.output_dir, exist_ok=True)
+            out_name = 'pred{}.jpg'.format(filename_base)
+            cv2.imwrite(os.path.join(args.output_dir, out_name), img_to_draw)
+
+        if txt_file is not None:
+            txt_file.write("img{}  pre={}  gr={}\n".format(filename_base, predict, gr))
+
+    if txt_file is not None:
+        txt_file.close()
+
+    if args.predicts_point_dir:
+        os.makedirs(args.predicts_point_dir, exist_ok=True)
+        np.save(os.path.join(args.predicts_point_dir, 'points.npy'), np.array(all_point, dtype=object))
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('P2PNet evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()

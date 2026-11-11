@@ -44,5 +44,23 @@ Thumbs.db
 *.bin
 *.onnx
 
+# Datasets (large raw images and annotations)
+dataset/ShanghaiTech/
+dataset/mall_dataset/
+dataset/Jhu-Crowd++/
+data/
+*.zip
+*.tar
+*.tar.gz
+
+# Generated outputs
+prediction/images/*
+prediction/points.npy
+prediction/predict_txt.txt
+heatmap/*.png
+!heatmap/.gitkeep
+logs/
+runs/
+
 # Allow keeping empty directories
 !.gitkeep

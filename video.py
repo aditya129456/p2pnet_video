@@ -71,63 +71,79 @@ def main(args, debug=False):
 
     video_path = args.video_path
     vidcap = cv2.VideoCapture(video_path)
+    if not vidcap.isOpened():
+        print(f"Error: Could not open video source '{video_path}'")
+        return
+
     sec = 0
-    frameRate = 0.05 #//it will capture image in each 0.1 second
-    count=1
-    flag=True
-    c=1
+    frameRate = 0.05  # captures image every 0.05 seconds
+    count = 1
+    flag = True
+    c = 1
+    out = None
+
+    if args.output_dir:
+        out_dir = os.path.dirname(args.output_dir)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+
+    resample_mode = Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.ANTIALIAS
+
     while flag:
         count = count + 1
         sec = sec + frameRate
         sec = round(sec, 2)
-        vidcap.set(cv2.CAP_PROP_POS_MSEC,sec*1000)
-        hasFrames,image = vidcap.read()
-        if hasFrames==True:
-            img_raw=np.copy(image)
-        else:
-          out.release()
-          cv2.destroyAllWindows()
-          vidcap.release()
-          break
-        img_raw = Image.fromarray(img_raw)
+        vidcap.set(cv2.CAP_PROP_POS_MSEC, sec * 1000)
+        hasFrames, image = vidcap.read()
+        if not hasFrames:
+            if out is not None:
+                out.release()
+            cv2.destroyAllWindows()
+            vidcap.release()
+            break
+
+        # Convert OpenCV BGR to RGB for PIL & normalization
+        img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        img_raw = Image.fromarray(img_rgb)
         width, height = img_raw.size
-        if width>2000 or height>2000:
-              r=width/height
-              width=2000
-              height=int(2000/r)
+        if width > 2000 or height > 2000:
+            r = width / height
+            width = 2000
+            height = int(2000 / r)
         new_width = width // 128 * 128
         new_height = height // 128 * 128
-        
-        img_raw = img_raw.resize((new_width, new_height), Image.ANTIALIAS)
-        if c==1:
-              size=img_raw.size
-              out = cv2.VideoWriter(args.output_dir,cv2.VideoWriter_fourcc(*'DIVX'), 20, size)
-              c+=1
-        # pre-proccessing
-        img = transform(img_raw)
-            
 
-        samples = torch.Tensor(img).unsqueeze(0)
-        samples = samples.to(device)
-            # run inference
+        img_raw = img_raw.resize((new_width, new_height), resample_mode)
+        if c == 1:
+            size = (new_width, new_height)
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v') if args.output_dir.lower().endswith('.mp4') else cv2.VideoWriter_fourcc(*'DIVX')
+            out = cv2.VideoWriter(args.output_dir, fourcc, 20, size)
+            c += 1
+
+        # pre-processing
+        img = transform(img_raw)
+        samples = torch.Tensor(img).unsqueeze(0).to(device)
+
+        # run inference
         outputs = model(samples)
         outputs_scores = torch.nn.functional.softmax(outputs['pred_logits'], -1)[:, :, 1][0]
-
         outputs_points = outputs['pred_points'][0]
 
         threshold = args.threshold
-        # filter the predictions
         points = outputs_points[outputs_scores > threshold].detach().cpu().numpy().tolist()
-        predict_cnt = int((outputs_scores > threshold).sum())
 
-        outputs_scores = torch.nn.functional.softmax(outputs['pred_logits'], -1)[:, :, 1][0]
-
-        size=2
+        # draw predictions
+        size = 2 if new_width < 1500 else 3
         img_to_draw = cv2.cvtColor(np.array(img_raw), cv2.COLOR_RGB2BGR)
         for p in points:
             img_to_draw = cv2.circle(img_to_draw, (int(p[0]), int(p[1])), size, (0, 0, 255), -1)
-            
-        out.write(img_to_draw)
+
+        # overlay count
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(img_to_draw, f'Count: {len(points)}', (30, 40), font, 1.0, (0, 255, 255), 2, cv2.LINE_AA)
+
+        if out is not None:
+            out.write(img_to_draw)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('P2PNet evaluation script', parents=[get_args_parser()])
