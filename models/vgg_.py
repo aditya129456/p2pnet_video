@@ -1,6 +1,5 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 """
-Mostly copy-paste from torchvision references.
+VGG Backbone Network Definitions.
 """
 import os
 import torch
@@ -27,8 +26,8 @@ model_urls = {
 
 
 model_paths = {
-    'vgg16_bn': './pretrained_model/vgg16_bn-6c64b313.pth',
-    'vgg16': './pretrained_model/vgg16-397923af.pth',
+    'vgg16_bn': './weights/vgg16_bn.pth',
+    'vgg16': './weights/vgg16.pth',
 }
 
 
@@ -115,8 +114,7 @@ def _vgg(arch, cfg, batch_norm, pretrained, progress, sync=False, **kwargs):
 
 
 def vgg11(pretrained=False, progress=True, **kwargs):
-    r"""VGG 11-layer model (configuration "A") from
-    `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
+    r"""VGG 11-layer model (configuration "A").
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -126,8 +124,7 @@ def vgg11(pretrained=False, progress=True, **kwargs):
 
 
 def vgg11_bn(pretrained=False, progress=True, **kwargs):
-    r"""VGG 11-layer model (configuration "A") with batch normalization
-    `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
+    r"""VGG 11-layer model (configuration "A") with batch normalization.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -137,8 +134,7 @@ def vgg11_bn(pretrained=False, progress=True, **kwargs):
 
 
 def vgg13(pretrained=False, progress=True, **kwargs):
-    r"""VGG 13-layer model (configuration "B")
-    `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
+    r"""VGG 13-layer model (configuration "B").
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -148,8 +144,7 @@ def vgg13(pretrained=False, progress=True, **kwargs):
 
 
 def vgg13_bn(pretrained=False, progress=True, **kwargs):
-    r"""VGG 13-layer model (configuration "B") with batch normalization
-    `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
+    r"""VGG 13-layer model (configuration "B") with batch normalization.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -159,8 +154,7 @@ def vgg13_bn(pretrained=False, progress=True, **kwargs):
 
 
 def vgg16(pretrained=False, progress=True, **kwargs):
-    r"""VGG 16-layer model (configuration "D")
-    `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
+    r"""VGG 16-layer model (configuration "D").
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -170,8 +164,7 @@ def vgg16(pretrained=False, progress=True, **kwargs):
 
 
 def vgg16_bn(pretrained=False, progress=True, sync=False, **kwargs):
-    r"""VGG 16-layer model (configuration "D") with batch normalization
-    `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
+    r"""VGG 16-layer model (configuration "D") with batch normalization.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -181,8 +174,7 @@ def vgg16_bn(pretrained=False, progress=True, sync=False, **kwargs):
 
 
 def vgg19(pretrained=False, progress=True, **kwargs):
-    r"""VGG 19-layer model (configuration "E")
-    `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
+    r"""VGG 19-layer model (configuration "E").
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -192,8 +184,7 @@ def vgg19(pretrained=False, progress=True, **kwargs):
 
 
 def vgg19_bn(pretrained=False, progress=True, **kwargs):
-    r"""VGG 19-layer model (configuration 'E') with batch normalization
-    `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
+    r"""VGG 19-layer model (configuration 'E') with batch normalization.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet

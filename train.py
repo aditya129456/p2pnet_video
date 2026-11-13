@@ -28,7 +28,7 @@ def get_args_parser():
 
     # Model parameters
     parser.add_argument('--frozen_weights', type=str, default=None,
-                        help="Path to the pretrained model. If set, only the mask head will be trained")
+                        help="Path to the model checkpoint. If set, only the mask head will be trained")
 
     # * Backbone
     parser.add_argument('--backbone', default='vgg16_bn', type=str,
@@ -144,7 +144,6 @@ def main(args):
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
         model_without_ddp.load_state_dict(checkpoint['model'])
-        #detr
     # resume the weights and training state if exists
     if args.resume:
         checkpoint = torch.load(args.resume, map_location='cpu')

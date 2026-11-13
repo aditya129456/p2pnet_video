@@ -35,7 +35,7 @@ def get_args():
     )
     parser.add_argument(
         "--weights",
-        default="./pretrained_model/best_mae.pth",
+        default="./weights/best_mae.pth",
         help="Path to trained P2PNet model checkpoint."
     )
     parser.add_argument(

@@ -23,7 +23,7 @@ class CrowdDetector:
 
     def __init__(
         self,
-        weight_path: str = "./pretrained_model/best_mae.pth",
+        weight_path: str = "./weights/best_mae.pth",
         confidence_threshold: float = 0.5,
         backbone: str = "vgg16_bn",
         row: int = 2,

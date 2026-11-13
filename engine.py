@@ -1,7 +1,5 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 """
-Train and eval functions used in training and evaluation.
-Based on DETR.
+Train and evaluation pipeline functions.
 """
 import math
 import os

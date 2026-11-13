@@ -337,7 +337,7 @@ def main():
     global global_args
     parser = argparse.ArgumentParser(description="DeepCrowd Surveillance Command Center Web Server")
     parser.add_argument("--source", default="test_videos/mall_crowd_test.mp4", help="Video source (file, RTSP, webcam)")
-    parser.add_argument("--weights", default="pretrained_model/best_mae.pth", help="Model weights path")
+    parser.add_argument("--weights", default="weights/best_mae.pth", help="Model weights path")
     parser.add_argument("--zones", default="configs/zones_config.json", help="Zones JSON config")
     parser.add_argument("--tripwires", default="configs/tripwires_config.json", help="Tripwires JSON config")
     parser.add_argument("--alerts-config", default="configs/alerts_config.json", help="Alerts JSON config")

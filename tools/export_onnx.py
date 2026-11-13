@@ -28,7 +28,7 @@ class P2PNetExportModel(nn.Module):
 
 
 def export_model(
-    weights_path: str = "pretrained_model/best_mae.pth",
+    weights_path: str = "weights/best_mae.pth",
     output_onnx: str = "prediction/p2pnet_optimized.onnx",
     height: int = 384,
     width: int = 640,
@@ -87,7 +87,7 @@ def export_model(
 
 def main():
     parser = argparse.ArgumentParser(description="Export P2PNet to Optimized ONNX / TensorRT format")
-    parser.add_argument("--weights", default="pretrained_model/best_mae.pth", help="Model checkpoint path")
+    parser.add_argument("--weights", default="weights/best_mae.pth", help="Model checkpoint path")
     parser.add_argument("--output", default="prediction/p2pnet_optimized.onnx", help="Output ONNX filename")
     parser.add_argument("--width", default=640, type=int, help="Input width")
     parser.add_argument("--height", default=384, type=int, help="Input height")

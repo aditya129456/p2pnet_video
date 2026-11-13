@@ -64,9 +64,6 @@ class SHHA(Dataset):
         img_path = self.img_list[index]
         gt_path = self.img_map[img_path]
 
-        if img_path=='/content/drive/MyDrive/CV-PROJECT/ShTech-dataset/part_B_final/train_data/images/IMG_198.jpg':
-          img_path='/content/drive/MyDrive/CV-PROJECT/ShTech-dataset/part_B_final/train_data/images/IMG_200.jpg'
-          gt_path = self.img_map[img_path]
         # load image and ground truth
         img, point = load_data((img_path, gt_path), self.train)
 

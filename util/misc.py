@@ -1,8 +1,5 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 """
-Misc functions, including distributed helpers.
-
-Mostly copy-paste from torchvision references.
+Utility functions, including distributed training and logging helpers.
 """
 import os
 import subprocess

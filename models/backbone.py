@@ -1,4 +1,3 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 """
 Backbone modules.
 """
@@ -50,7 +49,7 @@ class BackboneBase_VGG(nn.Module):
 
 
 class Backbone_VGG(BackboneBase_VGG):
-    """ResNet backbone with frozen BatchNorm."""
+    """VGG backbone for feature extraction."""
     def __init__(self, name: str, return_interm_layers: bool):
         if name == 'vgg16_bn':
             backbone = models.vgg16_bn(pretrained=True)

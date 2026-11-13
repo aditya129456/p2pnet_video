@@ -1,7 +1,6 @@
 
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 """
-Hungarian matcher implementation based on DETR.
+Hungarian matcher implementation.
 """
 import torch
 from scipy.optimize import linear_sum_assignment

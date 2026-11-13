@@ -12,7 +12,7 @@ from models import build_model
 
 
 def benchmark_engine(
-    weights_path: str = "./pretrained_model/best_mae.pth",
+    weights_path: str = "./weights/best_mae.pth",
     resolution: tuple = (384, 640),
     iterations: int = 100,
     warmup: int = 20
@@ -135,7 +135,7 @@ def benchmark_engine(
 
 def main():
     parser = argparse.ArgumentParser(description="P2PNet Deep Optimization & Latency Benchmark")
-    parser.add_argument("--weights", default="pretrained_model/best_mae.pth", help="Model weights path")
+    parser.add_argument("--weights", default="weights/best_mae.pth", help="Model weights path")
     parser.add_argument("--iterations", default=100, type=int, help="Number of benchmark iterations")
     parser.add_argument("--width", default=640, type=int, help="Input width (multiple of 128)")
     parser.add_argument("--height", default=384, type=int, help="Input height (multiple of 128)")
