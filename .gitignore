@@ -55,8 +55,12 @@ data/
 
 # Generated outputs
 prediction/images/*
+!prediction/images/.gitkeep
 prediction/points.npy
 prediction/predict_txt.txt
+prediction/new_thr*
+eval_results/
+trained_models/
 heatmap/*.png
 !heatmap/.gitkeep
 logs/

@@ -68,7 +68,7 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
-    parser.add_argument('--num_workers', default=8, type=int)
+    parser.add_argument('--num_workers', default=2, type=int)
     parser.add_argument('--eval_freq', default=5, type=int,
                         help='frequency of evaluation, default setting is evaluating in every 5 epoch')
     parser.add_argument('--gpu_id', default=0, type=int, help='the gpu used for training')
@@ -77,18 +77,27 @@ def get_args_parser():
 
 def main(args):
     os.environ["CUDA_VISIBLE_DEVICES"] = '{}'.format(args.gpu_id)
+    if args.output_dir:
+        os.makedirs(args.output_dir, exist_ok=True)
+    if args.checkpoints_dir:
+        os.makedirs(args.checkpoints_dir, exist_ok=True)
+
     # create the logging file
     run_log_name = os.path.join(args.output_dir, 'run_log.txt')
     with open(run_log_name, "w") as log_file:
         log_file.write('Eval Log %s\n' % time.strftime("%c"))
 
-    #if args.frozen_weights is not None:
-    #    assert args.masks, "Frozen training is meant for segmentation only"
     # backup the arguments
     print(args)
     with open(run_log_name, "a") as log_file:
-        log_file.write("{}".format(args))
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        log_file.write("{}\n".format(args))
+    device = torch.device(f"cuda:{args.gpu_id}" if torch.cuda.is_available() else "cpu")
+    device_info = f"Using device: {device}"
+    if torch.cuda.is_available():
+        device_info += f" ({torch.cuda.get_device_name(args.gpu_id)})"
+    print(device_info)
+    with open(run_log_name, "a") as log_file:
+        log_file.write(f"{device_info}\n")
     # fix the seed for reproducibility
     seed = args.seed + utils.get_rank()
     torch.manual_seed(seed)
@@ -164,17 +173,21 @@ def main(args):
         # record the training states after every epoch
         if writer is not None:
             with open(run_log_name, "a") as log_file:
-                log_file.write("loss/loss@{}: {}".format(epoch, stat['loss']))
-                log_file.write("loss/loss_ce@{}: {}".format(epoch, stat['loss_ce']))
+                log_file.write("loss/loss@{}: {}\n".format(epoch, stat.get('loss', 0)))
+                log_file.write("loss/loss_ce@{}: {}\n".format(epoch, stat.get('loss_ce', 0)))
+                if 'loss_point' in stat:
+                    log_file.write("loss/loss_point@{}: {}\n".format(epoch, stat['loss_point']))
                 
-            writer.add_scalar('loss/loss', stat['loss'], epoch)
-            writer.add_scalar('loss/loss_ce', stat['loss_ce'], epoch)
+            writer.add_scalar('loss/loss', stat.get('loss', 0), epoch)
+            writer.add_scalar('loss/loss_ce', stat.get('loss_ce', 0), epoch)
+            if 'loss_point' in stat:
+                writer.add_scalar('loss/loss_point', stat['loss_point'], epoch)
 
         t2 = time.time()
-        print('[ep %d][lr %.7f][%.2fs]' % \
-              (epoch, optimizer.param_groups[0]['lr'], t2 - t1))
+        ep_msg = '[ep %d][lr %.7f][%.2fs]\n' % (epoch, optimizer.param_groups[0]['lr'], t2 - t1)
+        print(ep_msg, end='')
         with open(run_log_name, "a") as log_file:
-            log_file.write('[ep %d][lr %.7f][%.2fs]' % (epoch, optimizer.param_groups[0]['lr'], t2 - t1))
+            log_file.write(ep_msg)
         # change lr according to the scheduler
         lr_scheduler.step()
         # save latest weights every epoch
@@ -192,16 +205,17 @@ def main(args):
             mse.append(result[1])
             # print the evaluation results
             print('=======================================test=======================================')
-            print("mae:", result[0], "mse:", result[1], "time:", t2 - t1, "best mae:", np.min(mae), )
+            eval_msg = "mae: {:.2f}, mse: {:.2f}, time: {:.2f}s, best mae: {:.2f}\n".format(
+                result[0], result[1], t2 - t1, np.min(mae))
+            print(eval_msg, end='')
             with open(run_log_name, "a") as log_file:
-                log_file.write("mae:{}, mse:{}, time:{}, best mae:{}".format(result[0], 
-                                result[1], t2 - t1, np.min(mae)))
+                log_file.write(eval_msg)
             print('=======================================test=======================================')
-            # recored the evaluation results
+            # recorded the evaluation results
             if writer is not None:
                 with open(run_log_name, "a") as log_file:
-                    log_file.write("metric/mae@{}: {}".format(step, result[0]))
-                    log_file.write("metric/mse@{}: {}".format(step, result[1]))
+                    log_file.write("metric/mae@{}: {}\n".format(step, result[0]))
+                    log_file.write("metric/mse@{}: {}\n".format(step, result[1]))
                 writer.add_scalar('metric/mae', result[0], step)
                 writer.add_scalar('metric/mse', result[1], step)
                 step += 1

@@ -332,7 +332,7 @@ def build(args, training):
     if not training: 
         return model
 
-    weight_dict = {'loss_ce': 1, 'loss_points': args.point_loss_coef}
+    weight_dict = {'loss_ce': 1, 'loss_point': args.point_loss_coef, 'loss_points': args.point_loss_coef}
     losses = ['labels', 'points']
     matcher = build_matcher_crowd(args)
     criterion = SetCriterion_Crowd(num_classes, \
