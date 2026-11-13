@@ -132,8 +132,16 @@ class AnchorPoints(nn.Module):
 
         self.row = row
         self.line = line
+        self._anchor_cache = {}
 
     def forward(self, image):
+        shape_key = tuple(image.shape[2:])
+        device = image.device
+        cache_key = (shape_key, device)
+
+        if cache_key in self._anchor_cache:
+            return self._anchor_cache[cache_key]
+
         image_shape = image.shape[2:]
         image_shape = np.array(image_shape)
         image_shapes = [(image_shape + 2 ** x - 1) // (2 ** x) for x in self.pyramid_levels]
@@ -147,10 +155,9 @@ class AnchorPoints(nn.Module):
 
         all_anchor_points = np.expand_dims(all_anchor_points, axis=0)
         # send reference points to device
-        if torch.cuda.is_available():
-            return torch.from_numpy(all_anchor_points.astype(np.float32)).cuda()
-        else:
-            return torch.from_numpy(all_anchor_points.astype(np.float32))
+        anchor_tensor = torch.from_numpy(all_anchor_points.astype(np.float32)).to(device)
+        self._anchor_cache[cache_key] = anchor_tensor
+        return anchor_tensor
 
 class Decoder(nn.Module):
     def __init__(self, C3_size, C4_size, C5_size, feature_size=256):

@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "snapshots": {
+    "enabled": true,
+    "dir": "logs/snapshots"
+  },
+  "rules": {
+    "loitering_threshold_sec": 15.0,
+    "surge_threshold": 12,
+    "default_cooldown_sec": 5.0
+  },
+  "webhook": {
+    "enabled": false,
+    "url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  },
+  "telegram": {
+    "enabled": false,
+    "bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
+    "chat_id": "YOUR_TELEGRAM_CHAT_ID"
+  },
+  "email": {
+    "enabled": false,
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "sender": "alerts@surveillance.local",
+    "password": "",
+    "recipients": [
+      "security-team@example.com"
+    ]
+  }
+}

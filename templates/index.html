@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeepCrowd | Surveillance Command Center</title>
+  <!-- Chart.js for real-time occupancy trends -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --card-border: #1f293d;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #06b6d4;
+      --emerald: #10b981;
+      --alert-red: #ef4444;
+      --warning: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      background: rgba(17, 24, 39, 0.95);
+      border-bottom: 1px solid var(--card-border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .brand .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--emerald));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--emerald);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--emerald);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.9); }
+    }
+
+    /* Emergency Alert Banner */
+    #emergency-banner {
+      display: none;
+      background: linear-gradient(90deg, #dc2626, #b91c1c);
+      color: #fff;
+      padding: 10px 24px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-align: center;
+      letter-spacing: 0.5px;
+      animation: flash 1s infinite alternate;
+    }
+
+    @keyframes flash {
+      from { opacity: 0.9; }
+      to { opacity: 1; }
+    }
+
+    /* Main Container */
+    main {
+      padding: 20px 24px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      max-width: 1700px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Metrics Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    .metric-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--accent);
+    }
+
+    .metric-card.alert::before { background: var(--alert-red); }
+    .metric-card.success::before { background: var(--emerald); }
+    .metric-card.warning::before { background: var(--warning); }
+
+    .metric-title {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .metric-value {
+      font-size: 2.1rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .metric-sub {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Content Layout: Video Left, Analytics Right */
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 1100px) {
+      .workspace-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Video Player Card */
+    .video-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .video-viewport {
+      position: relative;
+      background: #000;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .video-viewport img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Right Sidebar: Zones and Charts */
+    .analytics-col {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Zone Progress Bars */
+    .zone-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .zone-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: #1f293d;
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--emerald);
+      border-radius: 9999px;
+      transition: width 0.3s ease, background-color 0.3s ease;
+    }
+
+    .progress-bar-fill.overcrowded {
+      background: var(--alert-red);
+      box-shadow: 0 0 8px var(--alert-red);
+    }
+
+    /* Chart Container */
+    .chart-container {
+      position: relative;
+      height: 170px;
+      width: 100%;
+    }
+
+    /* Alerts Log & Snapshot Gallery */
+    .alerts-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .alerts-list {
+      display: flex;
+      gap: 14px;
+      overflow-x: auto;
+      padding: 16px 20px;
+      min-height: 180px;
+    }
+
+    .alerts-list::-webkit-scrollbar {
+      height: 6px;
+    }
+    .alerts-list::-webkit-scrollbar-thumb {
+      background: #2d3748;
+      border-radius: 4px;
+    }
+
+    .alert-thumbnail-card {
+      flex: 0 0 220px;
+      background: #182234;
+      border: 1px solid #28354d;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .alert-thumbnail-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--accent);
+    }
+
+    .alert-thumbnail-card img {
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .alert-card-info {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .alert-type-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--alert-red);
+      text-transform: uppercase;
+    }
+
+    .alert-loc {
+      font-size: 0.85rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .alert-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Image Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      backdrop-filter: blur(6px);
+    }
+
+    .modal-overlay.active { display: flex; }
+
+    .modal-content {
+      position: relative;
+      max-width: 900px;
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .modal-content img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      background: rgba(0, 0, 0, 0.6);
+      color: #fff;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Emergency Warning Header -->
+  <div id="emergency-banner">
+    🚨 ACTIVE OVERCROWDING ALARM DETECTED — CHECK MONITORED ZONES IMMEDIATELY
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="logo-icon">👁️</div>
+      <span>DeepCrowd <span style="font-weight: 400; color: var(--accent);">Surveillance Suite</span></span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <div class="status-badge" id="camera-status">
+        <div class="status-dot"></div>
+        <span id="camera-label">LIVE | CAM-01-MALL</span>
+      </div>
+      <div style="font-size: 0.85rem; color: var(--text-muted);" id="live-clock">--:--:--</div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+
+    <!-- Top KPI Grid -->
+    <div class="metrics-grid">
+      <div class="metric-card" id="card-total">
+        <div class="metric-title">Total Detected Scene Crowd</div>
+        <div class="metric-value">
+          <span id="metric-total">0</span>
+          <span style="font-size: 1rem; color: var(--text-muted);">persons</span>
+        </div>
+        <div class="metric-sub" id="metric-total-sub">Real-time point detections</div>
+      </div>
+
+      <div class="metric-card success">
+        <div class="metric-title">Tripwire Flow (In / Out)</div>
+        <div class="metric-value">
+          <span id="metric-in" style="color: var(--emerald);">0</span>
+          <span style="color: var(--text-muted); font-size: 1.4rem;">/</span>
+          <span id="metric-out" style="color: var(--warning);">0</span>
+        </div>
+        <div class="metric-sub">Net Footfall: <b id="metric-net" style="color: #fff;">+0</b></div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">Engine Performance</div>
+        <div class="metric-value">
+          <span id="metric-fps">0.0</span>
+          <span style="font-size: 1rem; color: var(--text-muted);">FPS</span>
+        </div>
+        <div class="metric-sub">Latency: <span id="metric-latency">0</span> ms | FP16 Tensor Cores</div>
+      </div>
+
+      <div class="metric-card alert" id="card-alert-status">
+        <div class="metric-title">Security & Safety Status</div>
+        <div class="metric-value" style="font-size: 1.5rem;" id="metric-status-text">
+          ALL CLEAR
+        </div>
+        <div class="metric-sub" id="metric-status-sub">No capacity limits exceeded</div>
+      </div>
+    </div>
+
+    <!-- Workspace Grid -->
+    <div class="workspace-grid">
+
+      <!-- Left: Live Surveillance Video Stream -->
+      <div class="video-card">
+        <div class="card-header">
+          <span>Live Surveillance Feed (AI HUD Active)</span>
+          <span style="font-size: 0.8rem; color: var(--emerald); font-weight: 500;">● Real-Time MJPEG Stream</span>
+        </div>
+        <div class="video-viewport">
+          <img src="/video_feed" alt="Surveillance Stream" id="stream-img" onerror="this.src='';">
+        </div>
+      </div>
+
+      <!-- Right: Real-time Zones & Historical Trend -->
+      <div class="analytics-col">
+
+        <!-- Zone Capacities Card -->
+        <div class="card">
+          <div class="card-header" style="padding: 0 0 10px 0;">
+            <span>Monitored Zone Capacities</span>
+          </div>
+          <div id="zones-container" style="display: flex; flex-direction: column; gap: 14px;">
+            <div style="color: var(--text-muted); font-size: 0.85rem;">Loading zones...</div>
+          </div>
+        </div>
+
+        <!-- Occupancy Trend Chart -->
+        <div class="card">
+          <div class="card-header" style="padding: 0 0 8px 0;">
+            <span>Live Crowd Occupancy Trend</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="occupancyChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Incident Alerts & Snapshot Gallery -->
+    <div class="alerts-card">
+      <div class="card-header">
+        <span>Recent Incidents & Evidence Snapshots</span>
+        <button onclick="refreshAlerts()" style="background: transparent; border: 1px solid #374151; color: #9ca3af; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.75rem;">
+          ↻ Refresh
+        </button>
+      </div>
+      <div class="alerts-list" id="alerts-list">
+        <div style="color: var(--text-muted); font-size: 0.85rem; padding: 20px;">No incidents recorded yet.</div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Snapshot Modal Viewer -->
+  <div class="modal-overlay" id="image-modal" onclick="closeModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+      <img id="modal-img" src="" alt="Incident Snapshot">
+      <div style="padding: 14px 20px;" id="modal-caption">Incident Snapshot Details</div>
+    </div>
+  </div>
+
+  <script>
+    // Live Clock
+    setInterval(() => {
+      document.getElementById('live-clock').innerText = new Date().toLocaleTimeString();
+    }, 1000);
+
+    // Chart.js Setup
+    const ctx = document.getElementById('occupancyChart').getContext('2d');
+    const chartData = {
+      labels: [],
+      datasets: [{
+        label: 'Crowd Count',
+        data: [],
+        borderColor: '#06b6d4',
+        backgroundColor: 'rgba(6, 182, 212, 0.1)',
+        borderWidth: 2,
+        tension: 0.35,
+        fill: true,
+        pointRadius: 0
+      }]
+    };
+
+    const occupancyChart = new Chart(ctx, {
+      type: 'line',
+      data: chartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { display: false },
+          y: {
+            grid: { color: '#1f293d' },
+            ticks: { color: '#9ca3af', font: { size: 10 } }
+          }
+        }
+      }
+    });
+
+    // WebSocket Telemetry Connection
+    let ws = null;
+    function connectWS() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}/ws`);
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          updateDashboard(data);
+        } catch (e) {
+          console.error("WS Parse error", e);
+        }
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectWS, 2000); // Reconnect loop
+      };
+    }
+    connectWS();
+
+    function updateDashboard(data) {
+      // 1. Metric Numbers
+      document.getElementById('metric-total').innerText = data.total_scene_count || 0;
+      document.getElementById('metric-fps').innerText = (data.fps || 0).toFixed(1);
+      document.getElementById('metric-latency').innerText = (data.latency_ms || 0).toFixed(0);
+
+      // Tripwires
+      if (data.tripwires) {
+        document.getElementById('metric-in').innerText = data.tripwires.total_in || 0;
+        document.getElementById('metric-out').innerText = data.tripwires.total_out || 0;
+        const net = data.tripwires.net_flow || 0;
+        document.getElementById('metric-net').innerText = (net >= 0 ? '+' : '') + net;
+      }
+
+      // 2. Alert Status Banner
+      const banner = document.getElementById('emergency-banner');
+      const statusText = document.getElementById('metric-status-text');
+      const statusSub = document.getElementById('metric-status-sub');
+      const alertCard = document.getElementById('card-alert-status');
+
+      if (data.has_active_alert) {
+        banner.style.display = 'block';
+        statusText.innerText = '⚠️ BREACH ACTIVE';
+        statusText.style.color = '#ef4444';
+        statusSub.innerText = data.alerting_zones ? data.alerting_zones.join(', ') : 'Limit Exceeded';
+        alertCard.classList.add('alert');
+        alertCard.classList.remove('success');
+      } else {
+        banner.style.display = 'none';
+        statusText.innerText = 'ALL CLEAR';
+        statusText.style.color = '#10b981';
+        statusSub.innerText = 'Monitored zones within limits';
+        alertCard.classList.remove('alert');
+        alertCard.classList.add('success');
+      }
+
+      // 3. Zone Progress Bars
+      if (data.zones) {
+        const zonesContainer = document.getElementById('zones-container');
+        zonesContainer.innerHTML = '';
+
+        for (const [zoneName, zdata] of Object.entries(data.zones)) {
+          const count = zdata.count || 0;
+          const cap = zdata.max_capacity || 20;
+          const pct = Math.min(100, Math.round((count / cap) * 100));
+          const isOver = count > cap;
+
+          const item = document.createElement('div');
+          item.className = 'zone-item';
+          item.innerHTML = `
+            <div class="zone-meta">
+              <span>${zoneName}</span>
+              <span style="color: ${isOver ? '#ef4444' : '#9ca3af'};">
+                ${count} / ${cap} (${pct}%)
+              </span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill ${isOver ? 'overcrowded' : ''}" style="width: ${pct}%;"></div>
+            </div>
+          `;
+          zonesContainer.appendChild(item);
+        }
+      }
+
+      // 4. Update Chart
+      const nowLabel = new Date().toLocaleTimeString();
+      chartData.labels.push(nowLabel);
+      chartData.datasets[0].data.push(data.total_scene_count || 0);
+
+      if (chartData.labels.length > 35) {
+        chartData.labels.shift();
+        chartData.datasets[0].data.shift();
+      }
+      occupancyChart.update();
+    }
+
+    // Incident Snapshots Fetcher
+    async function refreshAlerts() {
+      try {
+        const resp = await fetch('/api/alerts?limit=15');
+        const alerts = await resp.json();
+        const listEl = document.getElementById('alerts-list');
+
+        if (!alerts || alerts.length === 0) {
+          listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 20px;">No incidents recorded yet.</div>';
+          return;
+        }
+
+        listEl.innerHTML = '';
+        alerts.forEach(alert => {
+          const card = document.createElement('div');
+          card.className = 'alert-thumbnail-card';
+          const filename = alert.snapshot_path ? alert.snapshot_path.split(/[/\\\\]/).pop() : '';
+          const imgUrl = filename ? `/api/snapshots/${filename}` : '';
+
+          card.innerHTML = `
+            <img src="${imgUrl}" alt="Snapshot" onerror="this.style.display='none';">
+            <div class="alert-card-info">
+              <div class="alert-type-badge">${alert.event_type}</div>
+              <div class="alert-loc">${alert.location_name}</div>
+              <div style="font-size: 0.8rem; font-weight: 600;">${alert.detected_value} / ${alert.threshold_value} persons</div>
+              <div class="alert-time">${new Date(alert.timestamp).toLocaleTimeString()}</div>
+            </div>
+          `;
+          card.onclick = () => openModal(imgUrl, `${alert.event_type} | ${alert.location_name} (${alert.detected_value}/${alert.threshold_value}) at ${alert.timestamp}`);
+          listEl.appendChild(card);
+        });
+      } catch (e) {
+        console.error("Failed to load alerts", e);
+      }
+    }
+
+    refreshAlerts();
+    setInterval(refreshAlerts, 5000); // Auto-refresh alert gallery
+
+    // Modal
+    function openModal(imgSrc, caption) {
+      document.getElementById('modal-img').src = imgSrc;
+      document.getElementById('modal-caption').innerText = caption;
+      document.getElementById('image-modal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('image-modal').classList.remove('active');
+    }
+  </script>
+</body>
+</html>

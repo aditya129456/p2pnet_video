@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "tripwires": [
+    {
+      "name": "Main Corridor Gate",
+      "pt1": [0.15, 0.48],
+      "pt2": [0.85, 0.48],
+      "in_label": "IN",
+      "out_label": "OUT",
+      "color": [0, 165, 255],
+      "is_normalized": true,
+      "cooldown_sec": 1.5
+    }
+  ]
+}
