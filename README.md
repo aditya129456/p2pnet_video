@@ -53,12 +53,12 @@ python train.py --data_root $DATA_ROOT \
 A trained model on the MALL_DATASET, SHTechPartA&B, and JHU-CROWD++ datasets is available in the './weights' directory. To predict the locations of individuals in test images, please run the following commands:
 
 <pre>
-python test.py --threshold 0.8 \
+python test.py --threshold 0.5 \
     --images_path ./test_images \
     --weight_path  ./pretrained_model/best_mae.pth \
     --output_dir ./prediction/images/ \
     --predicts_txt_dir ./prediction/predict_txt.txt \
-    --predicts_point_dir ./prediction/new_thr=0.8
+    --predicts_point_dir ./prediction/points
 </pre>
   
 **image_path** : test image folder address
@@ -109,7 +109,7 @@ A sample of the heatmap is provided below:
 To predict the locations of individuals in a video, please run the following commands:
 
 <pre> 
-python video.py --threshold 0.65 \
+python video.py --threshold 0.5 \
     --video_path $VIDEO_PATH \
     --weight_path  ./pretrained_model/best_mae.pth \
     --output_dir prediction/video.mp4
