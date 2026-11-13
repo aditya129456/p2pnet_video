@@ -43,6 +43,9 @@ Thumbs.db
 *.h5
 *.bin
 *.onnx
+*.mp4
+*.avi
+*.mov
 
 # Datasets (large raw images and annotations)
 dataset/ShanghaiTech/
@@ -59,6 +62,7 @@ prediction/images/*
 prediction/points.npy
 prediction/predict_txt.txt
 prediction/new_thr*
+prediction/*.mp4
 eval_results/
 trained_models/
 heatmap/*.png

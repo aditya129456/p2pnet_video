@@ -53,6 +53,7 @@ def main(args, debug=False):
 
     print(args)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device} ({torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'})")
     # get the P2PNet
     model = build_model(args)
     # move to GPU
@@ -144,6 +145,15 @@ def main(args, debug=False):
 
         if out is not None:
             out.write(img_to_draw)
+
+        if count % 25 == 0:
+            print(f"Processed frame {count} (t={sec:.2f}s) | Detected count: {len(points)}")
+
+    if out is not None:
+        out.release()
+    vidcap.release()
+    cv2.destroyAllWindows()
+    print(f"Video processing finished! Output saved to: {args.output_dir}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('P2PNet evaluation script', parents=[get_args_parser()])
