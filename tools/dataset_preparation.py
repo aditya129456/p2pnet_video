@@ -30,36 +30,29 @@ def main(args):
   imgs_path=args.images_path
   app=args.application
 
-  if app=='convert_gr_format':
-    #convert grandtruth information from .mat to .txt
-    for filename in os.listdir(gt_path):
-      gt = loadmat(os.path.join(gt_path,filename))
-      info=(gt['image_info'])[0][0][0][0][0]
-      file = open(os.path.join(gt_txt_path,'{}.txt'.format(filename[:-4])), "w+")
-      for i in range(np.shape(info)[0]):
-        x,y=info[i][0],info[i][1]
-        file.write("{} {}\n".format(x,y))
+  if app in ('convert_gr_format', 'both'):
+    # convert groundtruth information from .mat to .txt
+    if gt_path and gt_txt_path and os.path.isdir(gt_path):
+      os.makedirs(gt_txt_path, exist_ok=True)
+      for filename in os.listdir(gt_path):
+        if not filename.endswith('.mat'):
+          continue
+        gt = loadmat(os.path.join(gt_path, filename))
+        info = (gt['image_info'])[0][0][0][0][0]
+        out_txt = os.path.join(gt_txt_path, '{}.txt'.format(filename[:-4]))
+        with open(out_txt, "w") as f:
+          for i in range(np.shape(info)[0]):
+            x, y = info[i][0], info[i][1]
+            f.write("{} {}\n".format(x, y))
 
-  elif app=='make_list':
-    #Creat list of images and grandtruth for training
-    file = open(os.path.join(list_path,'train_list.txt'), "w+")
-    for filename in os.listdir(imgs_path):
-      file.write("images/{} gt_txt/GT_{}.txt\n".format(filename,filename[:-4]))
-  
-  else:
-    #convert grandtruth information from .mat to .txt
-    for filename in os.listdir(gt_path):
-      gt = loadmat(os.path.join(gt_path,filename))
-      info=(gt['image_info'])[0][0][0][0][0]
-      file = open(os.path.join(gt_txt_path,'{}.txt'.format(filename[:-4])), "w+")
-      for i in range(np.shape(info)[0]):
-        x,y=info[i][0],info[i][1]
-        file.write("{} {}\n".format(x,y))
-
-    #Creat list of images and grandtruth for training
-    file = open(os.path.join(list_path,'train_list.txt'), "w+")
-    for filename in os.listdir(imgs_path):
-      file.write("images/{} gt_txt/GT_{}.txt\n".format(filename,filename[:-4]))
+  if app in ('make_list', 'both'):
+    # Create list of images and groundtruth for training
+    if list_path and imgs_path and os.path.isdir(imgs_path):
+      os.makedirs(list_path, exist_ok=True)
+      out_list = os.path.join(list_path, 'train_list.txt')
+      with open(out_list, "w") as f:
+        for filename in os.listdir(imgs_path):
+          f.write("images/{} gt_txt/GT_{}.txt\n".format(filename, filename[:-4]))
 
 
 

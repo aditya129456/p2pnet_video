@@ -62,7 +62,7 @@ class VGG(nn.Module):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
+            elif isinstance(m, (nn.BatchNorm2d, nn.SyncBatchNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
@@ -103,10 +103,19 @@ def _vgg(arch, cfg, batch_norm, pretrained, progress, sync=False, **kwargs):
         kwargs['init_weights'] = False
     model = VGG(make_layers(cfgs[cfg], batch_norm=batch_norm, sync=sync), **kwargs)
     if pretrained:
-        if arch in model_urls:
-            state_dict = torch.hub.load_state_dict_from_url(model_urls[arch], progress=progress)
-        elif arch in model_paths and os.path.exists(model_paths[arch]):
-            state_dict = torch.load(model_paths[arch])
+        local_path = model_paths.get(arch)
+        if local_path and not os.path.exists(local_path):
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            alt_path = os.path.join(project_root, local_path.lstrip('./\\'))
+            if os.path.exists(alt_path):
+                local_path = alt_path
+
+        if local_path and os.path.exists(local_path):
+            state_dict = torch.load(local_path, map_location='cpu')
+            if isinstance(state_dict, dict) and 'model' in state_dict:
+                state_dict = state_dict['model']
+        elif arch in model_urls:
+            state_dict = torch.hub.load_state_dict_from_url(model_urls[arch], progress=progress, map_location='cpu')
         else:
             raise FileNotFoundError(f"Model checkpoint for {arch} not found.")
         model.load_state_dict(state_dict)
@@ -123,14 +132,14 @@ def vgg11(pretrained=False, progress=True, **kwargs):
     return _vgg('vgg11', 'A', False, pretrained, progress, **kwargs)
 
 
-def vgg11_bn(pretrained=False, progress=True, **kwargs):
+def vgg11_bn(pretrained=False, progress=True, sync=False, **kwargs):
     r"""VGG 11-layer model (configuration "A") with batch normalization.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _vgg('vgg11_bn', 'A', True, pretrained, progress, **kwargs)
+    return _vgg('vgg11_bn', 'A', True, pretrained, progress, sync=sync, **kwargs)
 
 
 def vgg13(pretrained=False, progress=True, **kwargs):
@@ -143,14 +152,14 @@ def vgg13(pretrained=False, progress=True, **kwargs):
     return _vgg('vgg13', 'B', False, pretrained, progress, **kwargs)
 
 
-def vgg13_bn(pretrained=False, progress=True, **kwargs):
+def vgg13_bn(pretrained=False, progress=True, sync=False, **kwargs):
     r"""VGG 13-layer model (configuration "B") with batch normalization.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _vgg('vgg13_bn', 'B', True, pretrained, progress, **kwargs)
+    return _vgg('vgg13_bn', 'B', True, pretrained, progress, sync=sync, **kwargs)
 
 
 def vgg16(pretrained=False, progress=True, **kwargs):
@@ -183,11 +192,11 @@ def vgg19(pretrained=False, progress=True, **kwargs):
     return _vgg('vgg19', 'E', False, pretrained, progress, **kwargs)
 
 
-def vgg19_bn(pretrained=False, progress=True, **kwargs):
+def vgg19_bn(pretrained=False, progress=True, sync=False, **kwargs):
     r"""VGG 19-layer model (configuration 'E') with batch normalization.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _vgg('vgg19_bn', 'E', True, pretrained, progress, **kwargs)
+    return _vgg('vgg19_bn', 'E', True, pretrained, progress, sync=sync, **kwargs)

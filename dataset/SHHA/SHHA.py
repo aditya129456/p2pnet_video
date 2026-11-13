@@ -59,7 +59,7 @@ class SHHA(Dataset):
         return self.nSamples
 
     def __getitem__(self, index):
-        assert index <= len(self), 'index range error'
+        assert index < len(self), 'index range error'
 
         img_path = self.img_list[index]
         gt_path = self.img_map[img_path]
@@ -111,10 +111,14 @@ class SHHA(Dataset):
         # random flipping
         if random.random() > 0.5 and self.train and self.flip:
             # random flip
-            img = torch.Tensor(img[:, :, :, ::-1].copy())
+            if isinstance(img, torch.Tensor):
+                img = torch.flip(img, dims=[-1])
+            else:
+                img = torch.Tensor(img[..., ::-1].copy())
+            w_dim = 128 if self.patch else img.shape[-1]
             for i, _ in enumerate(point):
                 if len(point[i]) > 0:
-                    point[i][:, 0] = 128 - point[i][:, 0]
+                    point[i][:, 0] = w_dim - point[i][:, 0]
 
         if not self.train:
             point = [point]

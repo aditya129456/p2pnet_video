@@ -8,7 +8,10 @@ import torch.nn.functional as F
 import torchvision
 from torch import nn
 
-import models.vgg_ as models
+try:
+    from . import vgg_ as models
+except (ImportError, ValueError):
+    import vgg_ as models
 
 class BackboneBase_VGG(nn.Module):
     def __init__(self, backbone: nn.Module, num_channels: int, name: str, return_interm_layers: bool):
@@ -50,18 +53,21 @@ class BackboneBase_VGG(nn.Module):
 
 class Backbone_VGG(BackboneBase_VGG):
     """VGG backbone for feature extraction."""
-    def __init__(self, name: str, return_interm_layers: bool):
+    def __init__(self, name: str, return_interm_layers: bool, pretrained: bool = True):
         if name == 'vgg16_bn':
-            backbone = models.vgg16_bn(pretrained=True)
+            backbone = models.vgg16_bn(pretrained=pretrained)
         elif name == 'vgg16':
-            backbone = models.vgg16(pretrained=True)
+            backbone = models.vgg16(pretrained=pretrained)
+        else:
+            raise ValueError(f"Unsupported backbone: '{name}'. Supported options are 'vgg16_bn' and 'vgg16'.")
         num_channels = 256
         super().__init__(backbone, num_channels, name, return_interm_layers)
 
 
 def build_backbone(args):
-    backbone = Backbone_VGG(args.backbone, True)
+    pretrained = getattr(args, 'pretrained_backbone', getattr(args, 'pretrained', True))
+    backbone = Backbone_VGG(args.backbone, True, pretrained=pretrained)
     return backbone
 
 if __name__ == '__main__':
-    Backbone_VGG('vgg16', True)
+    Backbone_VGG('vgg16', True, pretrained=False)
