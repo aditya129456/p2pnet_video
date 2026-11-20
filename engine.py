@@ -8,8 +8,8 @@ from typing import Iterable
 
 import torch
 
-import util.misc as utils
-from util.misc import NestedTensor
+import models.misc as utils
+from models.misc import NestedTensor
 import numpy as np
 import time
 import torchvision.transforms as standard_transforms
