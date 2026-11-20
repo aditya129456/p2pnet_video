@@ -7,7 +7,7 @@ An end-to-end crowd counting, individual localization, and real-time spatial sur
 Images and ground truth annotations can be preprocessed into standard training formats:
 
 ```bash
-python dataset_preparation.py --application='make_list' \
+python tools/dataset_preparation.py --application='make_list' \
     --list_dir $DATA_DIR \
     --groundtruth_dir $GT_DIR \
     --images_path $IMG_PATH \
@@ -74,7 +74,7 @@ Sample localization predictions on crowd scenes:
 To generate density heatmaps from point predictions:
 
 ```bash
-python density_map.py --images_path ./test_images \
+python tools/density_map.py --images_path ./test_images \
     --points_path ./prediction/predict_txt.txt \
     --method 'fixed' \
     --output_dir ./heatmaps
