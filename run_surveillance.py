@@ -30,7 +30,7 @@ def get_args():
     )
     parser.add_argument(
         "--source",
-        default="test_videos/mall_crowd_test.mp4",
+        default="samples/videos/mall_crowd_test.mp4",
         help="Input video source: RTSP stream URL, camera index (0), or video file path."
     )
     parser.add_argument(

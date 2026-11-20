@@ -337,7 +337,7 @@ async def websocket_telemetry(websocket: WebSocket):
 def main():
     global global_args
     parser = argparse.ArgumentParser(description="DeepCrowd Surveillance Command Center Web Server")
-    parser.add_argument("--source", default="test_videos/mall_crowd_test.mp4", help="Video source (file, RTSP, webcam)")
+    parser.add_argument("--source", default="samples/videos/mall_crowd_test.mp4", help="Video source (file, RTSP, webcam)")
     parser.add_argument("--weights", default="weights/best_mae.pth", help="Model weights path")
     parser.add_argument("--zones", default="configs/zones_config.json", help="Zones JSON config")
     parser.add_argument("--tripwires", default="configs/tripwires_config.json", help="Tripwires JSON config")

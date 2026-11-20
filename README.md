@@ -45,7 +45,7 @@ Trained weights are available in the `./weights` directory. To evaluate individu
 
 ```bash
 python test.py --threshold 0.5 \
-    --images_path ./test_images \
+    --images_path ./samples/images \
     --weight_path ./weights/best_mae.pth \
     --output_dir ./prediction/images/ \
     --predicts_txt_dir ./prediction/predict_txt.txt \
@@ -62,11 +62,11 @@ python test.py --threshold 0.5 \
 Sample localization predictions on crowd scenes:
 
 <p align="center">
-  <img src="images/img2.jpg" width="1000" >
+  <img src="docs/images/img2.jpg" width="1000" >
 </p>
 
 <p align="center">
-  <img src="images/img3.jpg" width="1000">
+  <img src="docs/images/img3.jpg" width="1000">
 </p>
 
 ## Density Heatmap Generation
@@ -74,16 +74,16 @@ Sample localization predictions on crowd scenes:
 To generate density heatmaps from point predictions:
 
 ```bash
-python tools/density_map.py --images_path ./test_images \
+python tools/density_map.py --images_path ./samples/images \
     --points_path ./prediction/predict_txt.txt \
     --method 'fixed' \
-    --output_dir ./heatmaps
+    --output_dir ./prediction/heatmaps
 ```
 
 Sample generated density heatmap:
 
 <p align="center">
-  <img src="images/heatmap.png" width="1700">
+  <img src="docs/images/heatmap.png" width="1700">
 </p>
 
 ## Video Inference
@@ -98,7 +98,7 @@ python video.py --threshold 0.5 \
 ```
 
 <p align="center">
-  <img src="images/video_cover.png" width="800">
+  <img src="docs/images/video_cover.png" width="800">
 </p>
 
 ---
@@ -137,7 +137,7 @@ Transforming the research P2PNet into an enterprise surveillance & crowd intelli
 ### 1. Launching the Web Command Center (Stage 5)
 To launch the browser-based Surveillance Command Center:
 ```bash
-python web_app.py --source test_videos/mall_crowd_test.mp4 --port 8000
+python web_app.py --source samples/videos/mall_crowd_test.mp4 --port 8000
 ```
 Open **`http://localhost:8000`** in any web browser to view:
 * **Live Video Player:** Real-time AI HUD video stream with translucent zones, tripwires, and motion trails.
@@ -149,7 +149,7 @@ Open **`http://localhost:8000`** in any web browser to view:
 ### 2. Calibrating Zones and Tripwires
 To draw custom monitoring zones and virtual tripwires on any camera feed:
 ```bash
-python tools/zone_drawer.py --source test_videos/mall_crowd_test.mp4 --zones configs/zones_config.json --tripwires configs/tripwires_config.json
+python tools/zone_drawer.py --source samples/videos/mall_crowd_test.mp4 --zones configs/zones_config.json --tripwires configs/tripwires_config.json
 ```
 * **`t`:** Toggle between **ZONE** mode and **TRIPWIRE** mode
 * **ZONE Mode:** Left-click vertices -> Press **`c`** to close polygon and set capacity threshold
@@ -178,7 +178,7 @@ To run headless surveillance without the web server:
 
 ```bash
 # Optimized FP16 execution
-python run_surveillance.py --source test_videos/mall_crowd_test.mp4 \
+python run_surveillance.py --source samples/videos/mall_crowd_test.mp4 \
     --precision fp16 \
     --zones configs/zones_config.json \
     --tripwires configs/tripwires_config.json \

@@ -222,7 +222,7 @@ class InteractiveSurveillanceCalibrator:
 
 def main():
     parser = argparse.ArgumentParser(description="Interactive Spatial Calibrator (Zones + Tripwires)")
-    parser.add_argument("--source", default="test_videos/mall_crowd_test.mp4",
+    parser.add_argument("--source", default="samples/videos/mall_crowd_test.mp4",
                         help="Video file, RTSP URL, or webcam ID (0)")
     parser.add_argument("--zones", default="configs/zones_config.json",
                         help="Output path for zones JSON")

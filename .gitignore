@@ -65,8 +65,8 @@ prediction/new_thr*
 prediction/*.mp4
 eval_results/
 trained_models/
-heatmap/*.png
-!heatmap/.gitkeep
+prediction/heatmaps/*
+!prediction/heatmaps/.gitkeep
 logs/
 runs/
 
