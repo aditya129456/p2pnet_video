@@ -103,7 +103,7 @@ class SurveillanceDatabase:
         timestamp: Optional[float] = None
     ) -> int:
         """Insert an incident alert record."""
-        ts_str = datetime.fromtimestamp(timestamp or datetime.now().timestamp()).isoformat()
+        ts_str = datetime.fromtimestamp(timestamp if timestamp is not None else datetime.now().timestamp()).isoformat()
         with self.lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -131,7 +131,7 @@ class SurveillanceDatabase:
         timestamp: Optional[float] = None
     ) -> int:
         """Insert a directional crossing event record."""
-        ts_str = datetime.fromtimestamp(timestamp or datetime.now().timestamp()).isoformat()
+        ts_str = datetime.fromtimestamp(timestamp if timestamp is not None else datetime.now().timestamp()).isoformat()
         with self.lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -157,7 +157,7 @@ class SurveillanceDatabase:
         timestamp: Optional[float] = None
     ):
         """Insert periodic crowd level telemetry."""
-        ts_str = datetime.fromtimestamp(timestamp or datetime.now().timestamp()).isoformat()
+        ts_str = datetime.fromtimestamp(timestamp if timestamp is not None else datetime.now().timestamp()).isoformat()
         with self.lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()

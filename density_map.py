@@ -132,9 +132,10 @@ def gaussian_filter_density(images_path, all_points, density_map_dir):
         distances, locations = tree.query(points, k=k_val)
 
         for i, pt in enumerate(points):
-            pt2d = np.zeros(img_shape, dtype=np.float32)
-            if int(pt[1]) < img_shape[0] and int(pt[0]) < img_shape[1]:
-                pt2d[int(pt[1]), int(pt[0])] = 1.0
+            r, c = int(pt[1]), int(pt[0])
+            if 0 <= r < img_shape[0] and 0 <= c < img_shape[1]:
+                pt2d = np.zeros(img_shape, dtype=np.float32)
+                pt2d[r, c] = 1.0
             else:
                 continue
 

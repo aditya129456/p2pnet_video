@@ -243,11 +243,22 @@ class CrowdDetector:
             new_w = max(128, (w // 128) * 128)
             new_h = max(128, (h // 128) * 128)
 
-            scales.append((orig_w / float(new_w), orig_h / float(new_h)))
+            scales.append((orig_w / float(new_w), orig_h / float(new_h), new_w, new_h))
             img_resized = img_pil.resize((new_w, new_h), self.resample_mode)
             tensors.append(self.transform(img_resized))
 
-        batch_tensor = torch.stack(tensors, dim=0).to(self.device, dtype=self.dtype)
+        max_h = max(t.shape[1] for t in tensors)
+        max_w = max(t.shape[2] for t in tensors)
+        padded_tensors = []
+        for t in tensors:
+            pad_h = max_h - t.shape[1]
+            pad_w = max_w - t.shape[2]
+            if pad_h > 0 or pad_w > 0:
+                padded_tensors.append(torch.nn.functional.pad(t, (0, pad_w, 0, pad_h), value=0.0))
+            else:
+                padded_tensors.append(t)
+
+        batch_tensor = torch.stack(padded_tensors, dim=0).to(self.device, dtype=self.dtype)
 
         with torch.inference_mode():
             if self.precision == "amp" and self.device.type == "cuda":
@@ -263,11 +274,11 @@ class CrowdDetector:
         batch_scores = []
 
         for i in range(batch_size):
-            sx, sy = scales[i]
+            sx, sy, nw, nh = scales[i]
             scores_i = all_scores[i]
             points_i = all_points[i]
 
-            mask = scores_i > conf_thresh
+            mask = (scores_i > conf_thresh) & (points_i[:, 0] >= 0) & (points_i[:, 0] < nw) & (points_i[:, 1] >= 0) & (points_i[:, 1] < nh)
             filt_pts = points_i[mask].detach().cpu().float().numpy()
             filt_scs = scores_i[mask].detach().cpu().float().numpy().tolist()
 

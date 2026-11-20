@@ -40,12 +40,12 @@ class SHHA(Dataset):
         self.img_list = []
         # loads the image/gt pairs
         for _, train_list in enumerate(self.img_list_file):
-          train_list=train_list.split(' ')
-          if len(train_list)==2:
-            if (train_list[1])[0]=='/':
-              train_list[1]=(train_list[1])[1:]
-            self.img_map[os.path.join(self.root_path, train_list[0])] = \
-                                      os.path.join(self.root_path, train_list[1])
+            parts = train_list.split(' ')
+            if len(parts) == 2:
+                img_rel = parts[0].lstrip('/\\')
+                gt_rel = parts[1].lstrip('/\\')
+                self.img_map[os.path.join(self.root_path, img_rel)] = \
+                    os.path.join(self.root_path, gt_rel)
         self.img_list = sorted(list(self.img_map.keys()))
         # number of samples
         self.nSamples = len(self.img_list)
@@ -93,6 +93,9 @@ class SHHA(Dataset):
         # apply transform
         if self.transform is not None:
             img = self.transform(img)
+        elif not isinstance(img, torch.Tensor):
+            import torchvision.transforms.functional as TF
+            img = TF.to_tensor(img)
 
         if self.train:
             # data augmentation -> random scale
@@ -108,6 +111,9 @@ class SHHA(Dataset):
             img, point = random_crop(img, point)
             for i, _ in enumerate(point):
                 point[i] = torch.Tensor(point[i])
+        else:
+            point = [torch.as_tensor(point, dtype=torch.float32).reshape(-1, 2)]
+
         # random flipping
         if random.random() > 0.5 and self.train and self.flip:
             # random flip
@@ -115,13 +121,10 @@ class SHHA(Dataset):
                 img = torch.flip(img, dims=[-1])
             else:
                 img = torch.Tensor(img[..., ::-1].copy())
-            w_dim = 128 if self.patch else img.shape[-1]
+            w_dim = 128 if (self.train and self.patch) else img.shape[-1]
             for i, _ in enumerate(point):
                 if len(point[i]) > 0:
                     point[i][:, 0] = w_dim - point[i][:, 0]
-
-        if not self.train:
-            point = [point]
 
         img = torch.Tensor(img)
         # pack up related infos
@@ -142,8 +145,9 @@ class SHHA(Dataset):
 def load_data(img_gt_path, train):
     img_path, gt_path = img_gt_path
     # load the images
-    img = cv2.imread(img_path)
-    img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    if not os.path.exists(img_path):
+        raise FileNotFoundError(f"Image not found at: {img_path}")
+    img = Image.open(img_path).convert('RGB')
     # load ground truth points
     points = []
 

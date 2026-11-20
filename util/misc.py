@@ -472,16 +472,15 @@ class FocalLoss(nn.Module):
     def forward(self, inputs, targets):
         N = inputs.size(0)
         C = inputs.size(1)
-        P = F.softmax(inputs)
+        P = F.softmax(inputs, dim=1)
 
-        class_mask = inputs.data.new(N, C).fill_(0)
-        class_mask = Variable(class_mask)
+        class_mask = torch.zeros((N, C), dtype=inputs.dtype, device=inputs.device)
         ids = targets.view(-1, 1)
-        class_mask.scatter_(1, ids.data, 1.)
+        class_mask.scatter_(1, ids, 1.)
 
-        if inputs.is_cuda and not self.alpha.is_cuda:
-            self.alpha = self.alpha.cuda()
-        alpha = self.alpha[ids.data.view(-1)]
+        if self.alpha.device != inputs.device:
+            self.alpha = self.alpha.to(inputs.device)
+        alpha = self.alpha[ids.view(-1)]
 
         probs = (P*class_mask).sum(1).view(-1,1)
 

@@ -300,8 +300,9 @@ async def get_snapshot(filename: str):
     """Serve an incident evidence snapshot."""
     global global_args
     snapshot_dir = global_args.snapshot_dir if global_args else "logs/snapshots"
-    file_path = os.path.join(snapshot_dir, filename)
-    if not os.path.exists(file_path):
+    base_dir = os.path.abspath(snapshot_dir)
+    file_path = os.path.abspath(os.path.join(base_dir, filename))
+    if not file_path.startswith(base_dir) or not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="Snapshot not found")
     return FileResponse(file_path, media_type="image/jpeg")
 

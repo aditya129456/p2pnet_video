@@ -50,6 +50,8 @@ class AlertRuleEngine:
         if (now - last_time) < cd:
             return True
         self.cooldowns[key] = now
+        if len(self.cooldowns) > 300:
+            self.cooldowns = {k: v for k, v in self.cooldowns.items() if (now - v) < 120.0}
         return False
 
     def evaluate_frame(
@@ -103,7 +105,7 @@ class AlertRuleEngine:
         # 2. Loitering / Dwell Time Rule
         if tracks:
             for track in tracks:
-                if track.dwell_time >= self.loitering_threshold_sec:
+                if track.dwell_time >= self.loitering_threshold_sec and track.speed < 2.5:
                     key = f"LOITERING_{track.track_id}"
                     if not self._is_on_cooldown(key, now, cooldown=30.0):
                         snapshot_path = self.notifier.capture_snapshot(

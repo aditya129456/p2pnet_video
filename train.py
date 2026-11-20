@@ -154,6 +154,12 @@ def main(args):
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
 
+    if args.eval:
+        print("Running standalone evaluation (--eval)...")
+        result = evaluate_crowd_no_overlap(model, data_loader_val, device)
+        print(f"Validation Result -> MAE: {result[0]:.2f}, MSE: {result[1]:.2f}")
+        return
+
     print("Start training")
     start_time = time.time()
     # save the performance during the training
@@ -194,6 +200,9 @@ def main(args):
         checkpoint_latest_path = os.path.join(args.checkpoints_dir, 'latest.pth')
         torch.save({
             'model': model_without_ddp.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'lr_scheduler': lr_scheduler.state_dict(),
+            'epoch': epoch,
         }, checkpoint_latest_path)
         # run evaluation
         if epoch % args.eval_freq == 0 and epoch != 0:
@@ -225,6 +234,9 @@ def main(args):
                 checkpoint_best_path = os.path.join(args.checkpoints_dir, 'best_mae.pth')
                 torch.save({
                     'model': model_without_ddp.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'lr_scheduler': lr_scheduler.state_dict(),
+                    'epoch': epoch,
                 }, checkpoint_best_path)
     # total time for training
     total_time = time.time() - start_time

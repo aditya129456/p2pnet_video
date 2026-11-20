@@ -128,28 +128,34 @@ def evaluate_crowd_no_overlap(model, data_loader, device, vis_dir=None):
     # run inference on all images to calc MAE
     maes = []
     mses = []
+    threshold = 0.5
     for samples, targets in data_loader:
         samples = samples.to(device)
 
         outputs = model(samples)
-        outputs_scores = torch.nn.functional.softmax(outputs['pred_logits'], -1)[:, :, 1][0]
+        batch_size = outputs['pred_logits'].shape[0]
+        outputs_scores = torch.nn.functional.softmax(outputs['pred_logits'], -1)[:, :, 1]
+        outputs_points = outputs['pred_points']
 
-        outputs_points = outputs['pred_points'][0]
+        batch_pred_points = []
+        for b in range(batch_size):
+            scs = outputs_scores[b]
+            pts = outputs_points[b]
+            gt_cnt = targets[b]['point'].shape[0]
 
-        gt_cnt = targets[0]['point'].shape[0]
-        # 0.5 is used by default
-        threshold = 0.5
+            points = pts[scs > threshold].detach().cpu().numpy().tolist()
+            predict_cnt = int((scs > threshold).sum())
+            batch_pred_points.append(points)
 
-        points = outputs_points[outputs_scores > threshold].detach().cpu().numpy().tolist()
-        predict_cnt = int((outputs_scores > threshold).sum())
+            # accumulate MAE, MSE
+            mae = abs(predict_cnt - gt_cnt)
+            mse = (predict_cnt - gt_cnt) * (predict_cnt - gt_cnt)
+            maes.append(float(mae))
+            mses.append(float(mse))
+
         # if specified, save the visualized images
         if vis_dir is not None: 
-            vis(samples, targets, [points], vis_dir)
-        # accumulate MAE, MSE
-        mae = abs(predict_cnt - gt_cnt)
-        mse = (predict_cnt - gt_cnt) * (predict_cnt - gt_cnt)
-        maes.append(float(mae))
-        mses.append(float(mse))
+            vis(samples, targets, batch_pred_points, vis_dir)
     # calc MAE, MSE
     mae = np.mean(maes)
     mse = np.sqrt(np.mean(mses))

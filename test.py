@@ -57,7 +57,9 @@ def main(args, debug=False):
     print(args)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # get the P2PNet
-    model = build_model(args)
+    if not hasattr(args, 'pretrained_backbone') and not hasattr(args, 'pretrained'):
+        args.pretrained = False
+    model = build_model(args, training=False)
     # move to GPU
     model.to(device)
     # load trained model
@@ -106,12 +108,12 @@ def main(args, debug=False):
             continue
         # round the size
         width, height = img_raw.size
-        if width > 2000 or height > 2000:
-            r = width / height
-            width = 2000
-            height = int(2000 / r)
-        new_width = width // 128 * 128
-        new_height = height // 128 * 128
+        if max(width, height) > 2000:
+            scale = 2000.0 / max(width, height)
+            width = int(width * scale)
+            height = int(height * scale)
+        new_width = max(128, width // 128 * 128)
+        new_height = max(128, height // 128 * 128)
 
         filename_base = os.path.splitext(fname)[0]
         digits = ''.join(filter(str.isdigit, filename_base))

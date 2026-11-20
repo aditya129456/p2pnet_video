@@ -29,6 +29,12 @@ class RegressionModel(nn.Module):
         self.conv4 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
         self.act4 = nn.ReLU()
 
+        # conv3 and conv4 are unused in 2-conv forward pass; freeze them to prevent optimizer allocations
+        for p in self.conv3.parameters():
+            p.requires_grad = False
+        for p in self.conv4.parameters():
+            p.requires_grad = False
+
         self.output = nn.Conv2d(feature_size, num_anchor_points * 2, kernel_size=3, padding=1)
     # sub-branch forward
     def forward(self, x):
@@ -63,6 +69,12 @@ class ClassificationModel(nn.Module):
 
         self.conv4 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
         self.act4 = nn.ReLU()
+
+        # conv3 and conv4 are unused in 2-conv forward pass; freeze them to prevent optimizer allocations
+        for p in self.conv3.parameters():
+            p.requires_grad = False
+        for p in self.conv4.parameters():
+            p.requires_grad = False
 
         self.output = nn.Conv2d(feature_size, num_anchor_points * num_classes, kernel_size=3, padding=1)
         self.output_act = nn.Sigmoid()
@@ -225,7 +237,7 @@ class P2PNet(nn.Module):
         # run the regression and classification branch
         regression = self.regression(features_fpn[1]) * 100 # 8x
         classification = self.classification(features_fpn[1])
-        anchor_points = self.anchor_points(samples).repeat(batch_size, 1, 1)
+        anchor_points = self.anchor_points(samples).to(regression.dtype).repeat(batch_size, 1, 1)
         # decode the points as prediction
         output_coord = regression + anchor_points
         output_class = classification

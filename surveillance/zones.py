@@ -264,7 +264,7 @@ class ZoneManager:
                 x, y = int(track.current_point[0]), int(track.current_point[1])
                 if 0 <= x < w and 0 <= y < h:
                     in_alert = any(
-                        zone.is_alert and [track.current_point[0], track.current_point[1]] in zone.points_inside
+                        zone.is_alert and cv2.pointPolygonTest(zone.get_pixel_polygon(w, h), (float(x), float(y)), False) >= 0
                         for zone in self.zones
                     )
                     pt_color = (0, 0, 255) if in_alert else (0, 255, 255)
@@ -282,7 +282,10 @@ class ZoneManager:
             for pt in points:
                 x, y = int(pt[0]), int(pt[1])
                 if 0 <= x < w and 0 <= y < h:
-                    in_alert = any(zone.is_alert and pt in zone.points_inside for zone in self.zones)
+                    in_alert = any(
+                        zone.is_alert and cv2.pointPolygonTest(zone.get_pixel_polygon(w, h), (float(x), float(y)), False) >= 0
+                        for zone in self.zones
+                    )
                     pt_color = (0, 0, 255) if in_alert else (0, 255, 255)
                     radius = 3 if w >= 1280 else 2
                     cv2.circle(output, (x, y), radius, pt_color, -1)
@@ -367,15 +370,18 @@ class ZoneManager:
 
         # 3. Right: FPS / Latency / Alert Pill
         right_info = f"{fps:.1f} FPS | {inference_ms:.0f}ms"
+        (rw, _), _ = cv2.getTextSize(right_info, font, 0.44, 1)
+        right_x = w - rw - 15
+        cv2.putText(frame, right_info, (right_x, 26), font, 0.44, (180, 200, 200), 1, cv2.LINE_AA)
+
         if stats.get("has_active_alert"):
             alerts = ", ".join(stats.get("alerting_zones", []))
             alert_text = f"[!] ALERT: {alerts}"
             (aw, _), _ = cv2.getTextSize(alert_text, font, 0.45, 1)
-            cv2.rectangle(frame, (w - aw - 160, 8), (w - 145, 34), (0, 0, 220), -1)
-            cv2.putText(frame, alert_text, (w - aw - 155, 25), font, 0.42, (255, 255, 255), 1, cv2.LINE_AA)
-
-        (rw, _), _ = cv2.getTextSize(right_info, font, 0.44, 1)
-        cv2.putText(frame, right_info, (w - rw - 15, 26), font, 0.44, (180, 200, 200), 1, cv2.LINE_AA)
+            pill_right = right_x - 15
+            pill_left = max(10, pill_right - aw - 16)
+            cv2.rectangle(frame, (pill_left, 8), (pill_right, 34), (0, 0, 220), -1)
+            cv2.putText(frame, alert_text, (pill_left + 8, 25), font, 0.42, (255, 255, 255), 1, cv2.LINE_AA)
 
     def save_to_json(self, file_path: str):
         """Save zone configurations to a JSON file."""

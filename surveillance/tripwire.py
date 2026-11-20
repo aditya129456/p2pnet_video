@@ -153,11 +153,16 @@ class VirtualTripwire:
 
             # Did a crossing happen?
             # 1. Segment intersection test, OR
-            # 2. Side flip (e.g. from -1 to +1 or +1 to -1) while near the line
+            # 2. Side flip while within the bounding box of the line segment
+            near_segment = (
+                min(p1[0], p2[0]) - 25 <= curr_pt[0] <= max(p1[0], p2[0]) + 25
+                and min(p1[1], p2[1]) - 25 <= curr_pt[1] <= max(p1[1], p2[1]) + 25
+            )
             side_flipped = (last_recorded_side != curr_side) and (last_recorded_side != 0)
+            is_crossing = has_intersected or (side_flipped and near_segment)
             cooldown_passed = (timestamp - last_time) >= self.cooldown_sec
 
-            if (has_intersected or side_flipped) and cooldown_passed:
+            if is_crossing and cooldown_passed:
                 # Determine direction
                 if last_recorded_side == -1 and curr_side == 1:
                     direction = "IN"
@@ -187,6 +192,14 @@ class VirtualTripwire:
                 # Update current side
                 if curr_side != 0:
                     self.track_states[track.track_id] = (curr_side, last_time)
+
+        # Prune stale track states to prevent memory leaks
+        if len(self.track_states) > 200:
+            active_ids = {t.track_id for t in tracks}
+            self.track_states = {
+                tid: val for tid, val in self.track_states.items()
+                if tid in active_ids or (timestamp - val[1]) < 60.0
+            }
 
         return events
 

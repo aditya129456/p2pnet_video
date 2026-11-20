@@ -55,7 +55,9 @@ def main(args, debug=False):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device} ({torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'})")
     # get the P2PNet
-    model = build_model(args)
+    if not hasattr(args, 'pretrained_backbone') and not hasattr(args, 'pretrained'):
+        args.pretrained = False
+    model = build_model(args, training=False)
     # move to GPU
     model.to(device)
     # load trained model
@@ -107,18 +109,19 @@ def main(args, debug=False):
         img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         img_raw = Image.fromarray(img_rgb)
         width, height = img_raw.size
-        if width > 2000 or height > 2000:
-            r = width / height
-            width = 2000
-            height = int(2000 / r)
-        new_width = width // 128 * 128
-        new_height = height // 128 * 128
+        if max(width, height) > 2000:
+            scale = 2000.0 / max(width, height)
+            width = int(width * scale)
+            height = int(height * scale)
+        new_width = max(128, width // 128 * 128)
+        new_height = max(128, height // 128 * 128)
 
         img_raw = img_raw.resize((new_width, new_height), resample_mode)
         if c == 1:
-            size = (new_width, new_height)
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v') if args.output_dir.lower().endswith('.mp4') else cv2.VideoWriter_fourcc(*'DIVX')
-            out = cv2.VideoWriter(args.output_dir, fourcc, 20, size)
+            if args.output_dir:
+                size = (new_width, new_height)
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v') if args.output_dir.lower().endswith('.mp4') else cv2.VideoWriter_fourcc(*'DIVX')
+                out = cv2.VideoWriter(args.output_dir, fourcc, 20, size)
             c += 1
 
         # pre-processing

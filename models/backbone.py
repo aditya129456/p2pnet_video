@@ -65,7 +65,9 @@ class Backbone_VGG(BackboneBase_VGG):
 
 
 def build_backbone(args):
-    pretrained = getattr(args, 'pretrained_backbone', getattr(args, 'pretrained', True))
+    pretrained = getattr(args, 'pretrained_backbone', getattr(args, 'pretrained', None))
+    if pretrained is None:
+        pretrained = getattr(args, 'training', False)
     backbone = Backbone_VGG(args.backbone, True, pretrained=pretrained)
     return backbone
 

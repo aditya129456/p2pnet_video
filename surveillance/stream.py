@@ -197,11 +197,12 @@ class ThreadedCameraStream:
                     self.last_frame_timestamp = now
             else:
                 # File mode: queue frames so none are lost
-                try:
-                    self.frame_queue.put((frame, now), timeout=1.0)
-                except queue.Full:
-                    # If consumer is slow and queue is full, wait or throttle
-                    pass
+                while self.running:
+                    try:
+                        self.frame_queue.put((frame, now), timeout=0.1)
+                        break
+                    except queue.Full:
+                        continue
 
             # Optional FPS throttling
             if min_frame_time > 0:

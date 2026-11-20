@@ -39,7 +39,8 @@ def main(args):
           continue
         gt = loadmat(os.path.join(gt_path, filename))
         info = (gt['image_info'])[0][0][0][0][0]
-        out_txt = os.path.join(gt_txt_path, '{}.txt'.format(filename[:-4]))
+        base_name = os.path.splitext(filename)[0]
+        out_txt = os.path.join(gt_txt_path, '{}.txt'.format(base_name))
         with open(out_txt, "w") as f:
           for i in range(np.shape(info)[0]):
             x, y = info[i][0], info[i][1]
@@ -50,9 +51,12 @@ def main(args):
     if list_path and imgs_path and os.path.isdir(imgs_path):
       os.makedirs(list_path, exist_ok=True)
       out_list = os.path.join(list_path, 'train_list.txt')
+      valid_exts = ('.jpg', '.jpeg', '.png', '.bmp')
       with open(out_list, "w") as f:
-        for filename in os.listdir(imgs_path):
-          f.write("images/{} gt_txt/GT_{}.txt\n".format(filename, filename[:-4]))
+        for filename in sorted(os.listdir(imgs_path)):
+          base_name, ext = os.path.splitext(filename)
+          if ext.lower() in valid_exts:
+            f.write("images/{} gt_txt/GT_{}.txt\n".format(filename, base_name))
 
 
 
