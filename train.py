@@ -7,7 +7,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
 
-from dataset import build_dataset
+from models.dataset import build_dataset
 from engine import *
 from models import build_model
 import models.misc as utils
