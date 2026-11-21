@@ -9,6 +9,7 @@ import threading
 from typing import List, Dict, Any, Optional
 import cv2
 import uvicorn
+from pydantic import BaseModel
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -31,13 +32,67 @@ logger = logging.getLogger("SurveillanceWeb")
 
 app = FastAPI(title="DeepCrowd Surveillance Command Center")
 
+# Registry of available P2PNet crowd models
+AVAILABLE_MODELS = {
+    "generalist": {
+        "id": "generalist",
+        "name": "Generalist Fallback",
+        "weights": "weights/best_mae.pth",
+        "badge": "General Baseline",
+        "desc": "Cross-domain baseline trained on diverse environments"
+    },
+    "large_area": {
+        "id": "large_area",
+        "name": "Large-Area Specialist",
+        "weights": "weights/p2pnet_large_area.pth",
+        "badge": "Malls & Stations",
+        "desc": "Wide FOV, CCTV surveillance angles & distributed crowds"
+    },
+    "confined": {
+        "id": "confined",
+        "name": "Confined-Space Specialist",
+        "weights": "weights/p2pnet_confined.pth",
+        "badge": "Lifts & Rooms",
+        "desc": "Elevators, close overhead views & strict false-alarm rejection"
+    },
+    "supercrowd": {
+        "id": "supercrowd",
+        "name": "Supercrowd Specialist",
+        "weights": "weights/p2pnet_supercrowd.pth",
+        "badge": "Stadiums & Rallies",
+        "desc": "Mass gatherings, tiny occluded heads & extreme crowd density"
+    }
+}
+
+
+class ModelSelectRequest(BaseModel):
+    model_id: str
+
+
+class FeatureToggleRequest(BaseModel):
+    feature: str
+    enabled: bool
+
 
 class ServerState:
     """Thread-safe state shared between the AI video loop and FastAPI endpoints."""
     def __init__(self):
         self.lock = threading.Lock()
         self.latest_frame_jpeg: Optional[bytes] = None
+        self.active_model_id: str = "generalist"
+        self.model_switch_requested: Optional[str] = None
+        self.features: Dict[str, bool] = {
+            "show_zones": True,
+            "show_tracking": True,
+            "show_trajectories": True,
+            "show_tripwires": True,
+            "show_points": True,
+            "show_track_ids": True,
+        }
         self.latest_telemetry: Dict[str, Any] = {
+            "camera_name": "CAM-01-MALL",
+            "active_model": "generalist",
+            "active_model_name": "Generalist Fallback",
             "total_scene_count": 0,
             "fps": 0.0,
             "latency_ms": 0.0,
@@ -46,6 +101,7 @@ class ServerState:
             "zones": {},
             "tripwires": {"total_in": 0, "total_out": 0, "net_flow": 0},
             "timestamp": time.time(),
+            "features": dict(self.features),
         }
         self.active_websockets: List[WebSocket] = []
         self.running = True
@@ -59,7 +115,7 @@ db: Optional[SurveillanceDatabase] = None
 def surveillance_worker(args):
     """
     Dedicated background worker thread running AI detection, tracking,
-    zone/tripwire spatial analytics, and alert triggers.
+    zone/tripwire spatial analytics, dynamic model switching, and alert triggers.
     """
     global state, db
 
@@ -107,8 +163,18 @@ def surveillance_worker(args):
         )
     tripwire_mgr.register_callback(on_tripwire_cross)
 
-    # Tracker & Detector
+    # Determine initial model ID based on args.weights
+    initial_model = "generalist"
+    for mid, minfo in AVAILABLE_MODELS.items():
+        if os.path.abspath(minfo["weights"]) == os.path.abspath(args.weights):
+            initial_model = mid
+            break
+    with state.lock:
+        state.active_model_id = initial_model
+
+    # Tracker & Initial Detector
     tracker = KalmanPointTracker(max_distance=args.max_track_dist)
+    logger.info(f"Loading initial model [{initial_model}]: {args.weights}")
     detector = CrowdDetector(
         weight_path=args.weights,
         confidence_threshold=args.threshold,
@@ -135,6 +201,44 @@ def surveillance_worker(args):
 
         try:
             while state.running:
+                # 1. Check for requested model switch
+                with state.lock:
+                    switch_req = state.model_switch_requested
+                    state.model_switch_requested = None
+
+                if switch_req and switch_req in AVAILABLE_MODELS:
+                    new_cfg = AVAILABLE_MODELS[switch_req]
+                    target_w = new_cfg["weights"]
+                    if os.path.exists(target_w):
+                        logger.info(f"🔄 Switching model -> {switch_req} ({target_w})...")
+                        try:
+                            # Confined space benefits from higher confidence threshold; Supercrowd from lower
+                            t_thresh = 0.65 if switch_req == "confined" else (0.40 if switch_req == "supercrowd" else args.threshold)
+                            detector = CrowdDetector(
+                                weight_path=target_w,
+                                confidence_threshold=t_thresh,
+                                precision=args.precision,
+                                use_cuda_graph=False,
+                            )
+                            with state.lock:
+                                state.active_model_id = switch_req
+                            logger.info(f"✅ Successfully switched to {new_cfg['name']}")
+                        except Exception as e:
+                            logger.error(f"❌ Failed to switch model to {switch_req}: {e}")
+
+                # 2. Snapshot current feature toggles and active model
+                with state.lock:
+                    feat = dict(state.features)
+                    curr_mid = state.active_model_id
+
+                show_tracking = feat.get("show_tracking", True)
+                show_zones = feat.get("show_zones", True)
+                show_trajectories = feat.get("show_trajectories", True)
+                show_tripwires = feat.get("show_tripwires", True)
+                show_points = feat.get("show_points", True)
+                show_track_ids = feat.get("show_track_ids", True)
+
+                # 3. Read camera frame
                 ret, frame, frame_ts = stream.read()
                 if not ret or frame is None:
                     if stream.stopped:
@@ -152,23 +256,29 @@ def surveillance_worker(args):
 
                 h, w = frame.shape[:2]
 
-                # Inference
+                # 4. Deep Inference
                 if frame_idx % args.downsample == 0:
-                    points, scores, inference_ms = detector.detect(frame, threshold=args.threshold)
+                    points, scores, inference_ms = detector.detect(frame, threshold=detector.confidence_threshold)
                     last_latency = inference_ms
                     cached_points = points
 
-                    tracks = tracker.update(points, timestamp=frame_ts)
-                    cached_tracks = tracks
+                    # Tracking (if enabled)
+                    if show_tracking:
+                        tracks = tracker.update(points, timestamp=frame_ts)
+                        cached_tracks = tracks
+                    else:
+                        tracks = []
+                        cached_tracks = []
 
-                    # Tripwires
-                    crossing_events = tripwire_mgr.evaluate(tracks, w, h, timestamp=frame_ts)
-                    for ev in crossing_events:
-                        tw_obj = next((t for t in tripwire_mgr.tripwires if t.name == ev["tripwire"]), None)
-                        if tw_obj:
-                            alert_engine.evaluate_tripwire_event(frame, ev, tw_obj)
+                    # Tripwires (evaluated if tripwires enabled)
+                    if show_tripwires and tracks:
+                        crossing_events = tripwire_mgr.evaluate(tracks, w, h, timestamp=frame_ts)
+                        for ev in crossing_events:
+                            tw_obj = next((t for t in tripwire_mgr.tripwires if t.name == ev["tripwire"]), None)
+                            if tw_obj:
+                                alert_engine.evaluate_tripwire_event(frame, ev, tw_obj)
 
-                    track_pts = [t.current_point for t in tracks]
+                    track_pts = [t.current_point for t in tracks] if show_tracking else points
                     stats = zone_mgr.evaluate(track_pts if track_pts else points, w, h, timestamp=frame_ts)
                     cached_stats = stats
 
@@ -176,7 +286,7 @@ def surveillance_worker(args):
                     alert_engine.evaluate_frame(
                         frame=frame,
                         zone_manager=zone_mgr,
-                        tracks=tracks,
+                        tracks=tracks if show_tracking else [],
                         total_count=stats["total_scene_count"],
                         timestamp=frame_ts
                     )
@@ -186,7 +296,7 @@ def surveillance_worker(args):
                     stats = cached_stats
                     inference_ms = last_latency
 
-                # Render HUD
+                # 5. Render HUD with active feature toggles
                 annotated = zone_mgr.render_overlay(
                     frame=frame,
                     points=points,
@@ -194,31 +304,36 @@ def surveillance_worker(args):
                     fps=fps,
                     inference_ms=inference_ms,
                     camera_name=args.camera_name,
-                    tracks=tracks,
-                    tripwire_manager=tripwire_mgr,
+                    tracks=tracks if show_tracking else None,
+                    tripwire_manager=tripwire_mgr if show_tripwires else None,
                     timestamp=frame_ts,
-                    show_trajectories=True,
-                    show_track_ids=True
+                    show_trajectories=show_trajectories and show_tracking,
+                    show_track_ids=show_track_ids and show_tracking,
+                    show_zones=show_zones,
+                    show_points=show_points,
                 )
 
-                # Compress to JPEG for Web Stream (quality 80 for low bandwidth)
+                # 6. Compress to JPEG for Web Stream
                 ret_enc, jpeg_bytes = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
                 if ret_enc:
                     with state.lock:
                         state.latest_frame_jpeg = jpeg_bytes.tobytes()
                         state.latest_telemetry = {
                             "camera_name": args.camera_name,
+                            "active_model": curr_mid,
+                            "active_model_name": AVAILABLE_MODELS.get(curr_mid, {}).get("name", "Unknown"),
                             "total_scene_count": stats.get("total_scene_count", 0),
                             "fps": round(fps, 1),
                             "latency_ms": round(inference_ms, 1),
                             "has_active_alert": stats.get("has_active_alert", False),
                             "alerting_zones": stats.get("alerting_zones", []),
                             "zones": stats.get("zones", {}),
-                            "tripwires": tripwire_mgr.get_summary_stats(),
+                            "tripwires": tripwire_mgr.get_summary_stats() if show_tripwires else {"total_in": 0, "total_out": 0, "net_flow": 0},
                             "timestamp": frame_ts,
+                            "features": feat,
                         }
 
-                # Periodic Telemetry to DB
+                # 7. Periodic Telemetry to DB
                 if frame_idx % 30 == 0:
                     db.log_telemetry(
                         camera_id=args.camera_name,
@@ -229,7 +344,6 @@ def surveillance_worker(args):
                         timestamp=frame_ts
                     )
 
-                # Sleep slightly to match target FPS if offline file
                 if is_file:
                     time.sleep(0.015)
 
@@ -237,7 +351,6 @@ def surveillance_worker(args):
             stream.stop()
 
         if not is_file:
-            # If live stream ends without file loop, stop
             break
 
     notifier.shutdown()
@@ -267,7 +380,7 @@ def mjpeg_generator():
                 b"--frame\r\n"
                 b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
             )
-        time.sleep(0.035)  # ~28 FPS cap for video feed
+        time.sleep(0.035)
 
 
 @app.get("/video_feed")
@@ -284,6 +397,61 @@ async def get_stats():
     """Get current real-time telemetry."""
     with state.lock:
         return state.latest_telemetry
+
+
+@app.get("/api/models")
+async def get_models():
+    """Return available models and current active model."""
+    with state.lock:
+        curr_id = state.active_model_id
+
+    models_list = []
+    for mid, info in AVAILABLE_MODELS.items():
+        exists = os.path.exists(info["weights"])
+        models_list.append({
+            "id": mid,
+            "name": info["name"],
+            "badge": info["badge"],
+            "desc": info["desc"],
+            "weights": info["weights"],
+            "active": (mid == curr_id),
+            "available": exists,
+        })
+    return {"current_model": curr_id, "models": models_list}
+
+
+@app.post("/api/model/select")
+async def select_model(req: ModelSelectRequest):
+    """Dynamically switch the active AI crowd model."""
+    if req.model_id not in AVAILABLE_MODELS:
+        raise HTTPException(status_code=400, detail=f"Unknown model ID: {req.model_id}")
+    weights_path = AVAILABLE_MODELS[req.model_id]["weights"]
+    if not os.path.exists(weights_path):
+        raise HTTPException(status_code=404, detail=f"Model weights not found at: {weights_path}")
+
+    with state.lock:
+        state.model_switch_requested = req.model_id
+    logger.info(f"Model switch requested -> {req.model_id} ({weights_path})")
+    return {"status": "ok", "requested_model": req.model_id}
+
+
+@app.get("/api/features")
+async def get_features():
+    """Return current feature toggles."""
+    with state.lock:
+        return dict(state.features)
+
+
+@app.post("/api/features/toggle")
+async def toggle_feature(req: FeatureToggleRequest):
+    """Toggle a visualization or processing feature."""
+    with state.lock:
+        if req.feature in state.features:
+            state.features[req.feature] = req.enabled
+            logger.info(f"Feature toggled: {req.feature} -> {req.enabled}")
+            return {"status": "ok", "feature": req.feature, "enabled": req.enabled, "features": state.features}
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown feature toggle: {req.feature}")
 
 
 @app.get("/api/alerts")

@@ -209,6 +209,8 @@ class ZoneManager:
         timestamp: float = 0.0,
         show_trajectories: bool = True,
         show_track_ids: bool = True,
+        show_zones: bool = True,
+        show_points: bool = True,
     ) -> np.ndarray:
         """
         Render a clean, professional surveillance HUD over the video frame.
@@ -217,24 +219,25 @@ class ZoneManager:
         h, w = frame.shape[:2]
         output = frame.copy()
 
-        # 1. Render Translucent Polygonal Zones
-        overlay = output.copy()
-        for zone in self.zones:
-            poly_pts = zone.get_pixel_polygon(w, h)
-            zone_color = zone.alert_color if zone.is_alert else zone.color
-            alpha = 0.30 if zone.is_alert else 0.18
-
-            # Fill translucent polygon
-            cv2.fillPoly(overlay, [poly_pts], zone_color)
-            cv2.addWeighted(overlay, alpha, output, 1.0 - alpha, 0, output)
+        # 1. Render Translucent Polygonal Zones (if enabled)
+        if show_zones:
             overlay = output.copy()
+            for zone in self.zones:
+                poly_pts = zone.get_pixel_polygon(w, h)
+                zone_color = zone.alert_color if zone.is_alert else zone.color
+                alpha = 0.30 if zone.is_alert else 0.18
 
-            # Crisp boundary line
-            border_thick = 3 if zone.is_alert else 2
-            cv2.polylines(output, [poly_pts], isClosed=True, color=zone_color, thickness=border_thick)
+                # Fill translucent polygon
+                cv2.fillPoly(overlay, [poly_pts], zone_color)
+                cv2.addWeighted(overlay, alpha, output, 1.0 - alpha, 0, output)
+                overlay = output.copy()
 
-            # Zone Badge Label
-            self._draw_zone_badge(output, zone, poly_pts)
+                # Crisp boundary line
+                border_thick = 3 if zone.is_alert else 2
+                cv2.polylines(output, [poly_pts], isClosed=True, color=zone_color, thickness=border_thick)
+
+                # Zone Badge Label
+                self._draw_zone_badge(output, zone, poly_pts)
 
         # 2. Render Virtual Tripwires (if available)
         if tripwire_manager is not None:
@@ -258,37 +261,38 @@ class ZoneManager:
                         thick = 2 if alpha_t > 0.6 else 1
                         cv2.line(output, pt_start, pt_end, color_t, thick, cv2.LINE_AA)
 
-        # 4. Render Head Centroid Points & Track IDs
-        if tracks is not None:
-            for track in tracks:
-                x, y = int(track.current_point[0]), int(track.current_point[1])
-                if 0 <= x < w and 0 <= y < h:
-                    in_alert = any(
-                        zone.is_alert and cv2.pointPolygonTest(zone.get_pixel_polygon(w, h), (float(x), float(y)), False) >= 0
-                        for zone in self.zones
-                    )
-                    pt_color = (0, 0, 255) if in_alert else (0, 255, 255)
-                    radius = 3 if w >= 1280 else 2
-                    cv2.circle(output, (x, y), radius, pt_color, -1)
+        # 4. Render Head Centroid Points & Track IDs (if enabled)
+        if show_points:
+            if tracks is not None:
+                for track in tracks:
+                    x, y = int(track.current_point[0]), int(track.current_point[1])
+                    if 0 <= x < w and 0 <= y < h:
+                        in_alert = any(
+                            zone.is_alert and cv2.pointPolygonTest(zone.get_pixel_polygon(w, h), (float(x), float(y)), False) >= 0
+                            for zone in self.zones
+                        ) if show_zones else False
+                        pt_color = (0, 0, 255) if in_alert else (0, 255, 255)
+                        radius = 3 if w >= 1280 else 2
+                        cv2.circle(output, (x, y), radius, pt_color, -1)
 
-                    if show_track_ids:
-                        id_str = f"#{track.track_id}"
-                        cv2.putText(
-                            output, id_str, (x + 4, y - 4),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.32, (220, 220, 220), 1, cv2.LINE_AA
-                        )
-        else:
-            # Fallback to drawing raw points if tracking not active
-            for pt in points:
-                x, y = int(pt[0]), int(pt[1])
-                if 0 <= x < w and 0 <= y < h:
-                    in_alert = any(
-                        zone.is_alert and cv2.pointPolygonTest(zone.get_pixel_polygon(w, h), (float(x), float(y)), False) >= 0
-                        for zone in self.zones
-                    )
-                    pt_color = (0, 0, 255) if in_alert else (0, 255, 255)
-                    radius = 3 if w >= 1280 else 2
-                    cv2.circle(output, (x, y), radius, pt_color, -1)
+                        if show_track_ids:
+                            id_str = f"#{track.track_id}"
+                            cv2.putText(
+                                output, id_str, (x + 4, y - 4),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.32, (220, 220, 220), 1, cv2.LINE_AA
+                            )
+            else:
+                # Fallback to drawing raw points if tracking not active
+                for pt in points:
+                    x, y = int(pt[0]), int(pt[1])
+                    if 0 <= x < w and 0 <= y < h:
+                        in_alert = any(
+                            zone.is_alert and cv2.pointPolygonTest(zone.get_pixel_polygon(w, h), (float(x), float(y)), False) >= 0
+                            for zone in self.zones
+                        ) if show_zones else False
+                        pt_color = (0, 0, 255) if in_alert else (0, 255, 255)
+                        radius = 3 if w >= 1280 else 2
+                        cv2.circle(output, (x, y), radius, pt_color, -1)
 
         # 5. Top HUD Banner
         tripwire_summary = tripwire_manager.get_summary_stats() if tripwire_manager else None

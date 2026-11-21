@@ -17,6 +17,7 @@
       --emerald: #10b981;
       --alert-red: #ef4444;
       --warning: #f59e0b;
+      --purple: #8b5cf6;
     }
 
     * {
@@ -179,6 +180,140 @@
     .metric-sub {
       font-size: 0.85rem;
       color: var(--text-muted);
+    }
+
+    /* Controls Panel */
+    .controls-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .model-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .model-dropdown {
+      background: #182234;
+      color: var(--text-main);
+      border: 1px solid #28354d;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .model-dropdown:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.25);
+    }
+
+    .model-badge {
+      font-size: 0.76rem;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      color: var(--accent);
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.3s ease;
+    }
+
+    .model-badge.switching {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: var(--warning);
+      color: var(--warning);
+    }
+
+    .toggles-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .toggle-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #182234;
+      border: 1px solid #28354d;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .toggle-pill:hover {
+      border-color: #3b4b69;
+    }
+
+    /* iOS-Style Toggle Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #374151;
+      transition: 0.25s;
+      border-radius: 20px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.25s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--accent);
+      box-shadow: 0 0 8px rgba(6, 182, 212, 0.5);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(16px);
     }
 
     /* Content Layout: Video Left, Analytics Right */
@@ -349,11 +484,8 @@
     }
 
     .alert-loc {
-      font-size: 0.85rem;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-size: 0.88rem;
+      font-weight: 700;
     }
 
     .alert-time {
@@ -361,20 +493,24 @@
       color: var(--text-muted);
     }
 
-    /* Image Modal */
+    /* Evidence Modal */
     .modal-overlay {
-      display: none;
       position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.85);
-      z-index: 1000;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
       align-items: center;
       justify-content: center;
+      z-index: 1000;
       padding: 20px;
-      backdrop-filter: blur(6px);
     }
 
-    .modal-overlay.active { display: flex; }
+    .modal-overlay.active {
+      display: flex;
+    }
 
     .modal-content {
       position: relative;
@@ -469,6 +605,77 @@
           ALL CLEAR
         </div>
         <div class="metric-sub" id="metric-status-sub">No capacity limits exceeded</div>
+      </div>
+    </div>
+
+    <!-- AI Vision Pipeline Controls (Model Selection & Feature Toggles) -->
+    <div class="controls-card">
+      <div class="controls-row">
+        
+        <!-- Model Selection Dropdown -->
+        <div class="model-group">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.15rem;">🧠</span>
+            <span style="font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted);">Model:</span>
+          </div>
+          <select id="model-select" class="model-dropdown" onchange="onModelChange(this.value)">
+            <option value="generalist">🌐 Generalist Fallback (weights/best_mae.pth)</option>
+            <option value="large_area">🏢 Large-Area Specialist (Malls, Stations & Wide FOV)</option>
+            <option value="confined">🚪 Confined-Space Specialist (Lifts & Overhead Rooms)</option>
+            <option value="supercrowd">🏟️ Supercrowd Specialist (Stadiums, Concerts & Rallies)</option>
+          </select>
+          <span id="model-status-pill" class="model-badge">● Active Model</span>
+        </div>
+
+        <!-- Vision Feature Toggles -->
+        <div class="toggles-group">
+          
+          <!-- Polygonal Zones Toggle -->
+          <label class="toggle-pill" title="Toggle Polygonal Capacity Zones Overlay">
+            <span class="switch">
+              <input type="checkbox" id="toggle-show_zones" checked onchange="onToggleFeature('show_zones', this.checked)">
+              <span class="slider"></span>
+            </span>
+            <span>🔲 Polygon Zones</span>
+          </label>
+
+          <!-- Kalman Tracking Toggle -->
+          <label class="toggle-pill" title="Toggle Multi-Object Kalman Point Tracking">
+            <span class="switch">
+              <input type="checkbox" id="toggle-show_tracking" checked onchange="onToggleFeature('show_tracking', this.checked)">
+              <span class="slider"></span>
+            </span>
+            <span>🎯 Kalman Tracking</span>
+          </label>
+
+          <!-- Motion Trails Toggle -->
+          <label class="toggle-pill" title="Toggle Fading Velocity & Motion Trajectory Trails">
+            <span class="switch">
+              <input type="checkbox" id="toggle-show_trajectories" checked onchange="onToggleFeature('show_trajectories', this.checked)">
+              <span class="slider"></span>
+            </span>
+            <span>〰️ Motion Trails</span>
+          </label>
+
+          <!-- Virtual Tripwires Toggle -->
+          <label class="toggle-pill" title="Toggle Virtual Tripwires & Directional In/Out Flow">
+            <span class="switch">
+              <input type="checkbox" id="toggle-show_tripwires" checked onchange="onToggleFeature('show_tripwires', this.checked)">
+              <span class="slider"></span>
+            </span>
+            <span>⚡ Tripwires</span>
+          </label>
+
+          <!-- Head Points Toggle -->
+          <label class="toggle-pill" title="Toggle Head Centroid Point Markers">
+            <span class="switch">
+              <input type="checkbox" id="toggle-show_points" checked onchange="onToggleFeature('show_points', this.checked)">
+              <span class="slider"></span>
+            </span>
+            <span>🔴 Head Points</span>
+          </label>
+
+        </div>
       </div>
     </div>
 
@@ -577,6 +784,101 @@
       }
     });
 
+    // Model and Feature Controls Management
+    async function loadModels() {
+      try {
+        const resp = await fetch('/api/models');
+        const data = await resp.json();
+        const selectEl = document.getElementById('model-select');
+        selectEl.innerHTML = '';
+
+        data.models.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m.id;
+          opt.innerText = `${m.name} (${m.badge})`;
+          if (!m.available) {
+            opt.disabled = true;
+            opt.innerText += ' [Weights Missing]';
+          }
+          if (m.id === data.current_model) {
+            opt.selected = true;
+          }
+          selectEl.appendChild(opt);
+        });
+
+        updateModelPill(data.current_model);
+      } catch (e) {
+        console.error('Failed to load models list', e);
+      }
+    }
+
+    async function loadFeatures() {
+      try {
+        const resp = await fetch('/api/features');
+        const feats = await resp.json();
+        for (const [key, val] of Object.entries(feats)) {
+          const chk = document.getElementById(`toggle-${key}`);
+          if (chk) chk.checked = !!val;
+        }
+      } catch (e) {
+        console.error('Failed to load features', e);
+      }
+    }
+
+    async function onModelChange(newModelId) {
+      const pill = document.getElementById('model-status-pill');
+      pill.classList.add('switching');
+      pill.innerText = '🔄 Loading Model...';
+
+      try {
+        const resp = await fetch('/api/model/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_id: newModelId })
+        });
+        const res = await resp.json();
+        if (resp.ok) {
+          setTimeout(() => {
+            pill.classList.remove('switching');
+            updateModelPill(newModelId);
+          }, 800);
+        } else {
+          pill.innerText = '⚠️ Switch Error';
+          alert(res.detail || 'Failed to switch model');
+        }
+      } catch (e) {
+        console.error('Model switch request failed', e);
+        pill.innerText = '⚠️ Network Error';
+      }
+    }
+
+    async function onToggleFeature(featureKey, isChecked) {
+      try {
+        await fetch('/api/features/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ feature: featureKey, enabled: isChecked })
+        });
+      } catch (e) {
+        console.error('Feature toggle failed', e);
+      }
+    }
+
+    function updateModelPill(modelId) {
+      const pill = document.getElementById('model-status-pill');
+      pill.classList.remove('switching');
+      const names = {
+        'generalist': '🌐 Generalist Active',
+        'large_area': '🏢 Large-Area Active',
+        'confined': '🚪 Confined-Space Active',
+        'supercrowd': '🏟️ Supercrowd Active'
+      };
+      pill.innerText = names[modelId] || `● ${modelId} Active`;
+    }
+
+    loadModels();
+    loadFeatures();
+
     // WebSocket Telemetry Connection
     let ws = null;
     function connectWS() {
@@ -593,7 +895,7 @@
       };
 
       ws.onclose = () => {
-        setTimeout(connectWS, 2000); // Reconnect loop
+        setTimeout(connectWS, 2000);
       };
     }
     connectWS();
@@ -603,6 +905,25 @@
       document.getElementById('metric-total').innerText = data.total_scene_count || 0;
       document.getElementById('metric-fps').innerText = (data.fps || 0).toFixed(1);
       document.getElementById('metric-latency').innerText = (data.latency_ms || 0).toFixed(0);
+
+      // Model sync
+      if (data.active_model) {
+        const selectEl = document.getElementById('model-select');
+        if (selectEl && selectEl.value !== data.active_model && !document.getElementById('model-status-pill').classList.contains('switching')) {
+          selectEl.value = data.active_model;
+          updateModelPill(data.active_model);
+        }
+      }
+
+      // Feature sync (if provided)
+      if (data.features) {
+        for (const [key, val] of Object.entries(data.features)) {
+          const chk = document.getElementById(`toggle-${key}`);
+          if (chk && document.activeElement !== chk) {
+            chk.checked = !!val;
+          }
+        }
+      }
 
       // Tripwires
       if (data.tripwires) {
@@ -711,7 +1032,7 @@
     }
 
     refreshAlerts();
-    setInterval(refreshAlerts, 5000); // Auto-refresh alert gallery
+    setInterval(refreshAlerts, 5000);
 
     // Modal
     function openModal(imgSrc, caption) {
