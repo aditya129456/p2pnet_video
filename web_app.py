@@ -79,6 +79,7 @@ class ServerState:
     def __init__(self):
         self.lock = threading.Lock()
         self.latest_frame_jpeg: Optional[bytes] = None
+        self.latest_heatmap_jpeg: Optional[bytes] = None
         self.active_model_id: str = "generalist"
         self.model_switch_requested: Optional[str] = None
         self.features: Dict[str, bool] = {
@@ -88,7 +89,6 @@ class ServerState:
             "show_tripwires": True,
             "show_points": True,
             "show_track_ids": True,
-            "show_heatmap": False,
         }
         self.latest_telemetry: Dict[str, Any] = {
             "camera_name": "CAM-01-MALL",
@@ -238,7 +238,6 @@ def surveillance_worker(args):
                 show_tripwires = feat.get("show_tripwires", True)
                 show_points = feat.get("show_points", True)
                 show_track_ids = feat.get("show_track_ids", True)
-                show_heatmap = feat.get("show_heatmap", False)
 
                 # 3. Read camera frame
                 ret, frame, frame_ts = stream.read()
@@ -313,10 +312,16 @@ def surveillance_worker(args):
                     show_track_ids=show_track_ids and show_tracking,
                     show_zones=show_zones,
                     show_points=show_points,
-                    show_heatmap=show_heatmap,
                 )
 
-                # 6. Compress to JPEG for Web Stream
+                # 6. Generate Standalone Side-Panel Heatmap Matrix
+                heatmap_img = ZoneManager.generate_density_heatmap(points, w, h, out_w=400, out_h=225)
+                ret_hm, hm_bytes = cv2.imencode(".jpg", heatmap_img, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                if ret_hm:
+                    with state.lock:
+                        state.latest_heatmap_jpeg = hm_bytes.tobytes()
+
+                # 7. Compress Main Annotated Video to JPEG for Web Stream
                 ret_enc, jpeg_bytes = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
                 if ret_enc:
                     with state.lock:
@@ -391,6 +396,29 @@ async def video_feed():
     """Live MJPEG video streaming route."""
     return StreamingResponse(
         mjpeg_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
+
+def heatmap_mjpeg_generator():
+    """Generator yielding standalone Heatmap MJPEG multipart frames to the browser."""
+    while state.running:
+        with state.lock:
+            frame_bytes = state.latest_heatmap_jpeg
+
+        if frame_bytes is not None:
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
+            )
+        time.sleep(0.040)
+
+
+@app.get("/heatmap_feed")
+async def heatmap_feed():
+    """Live MJPEG crowd density heatmap streaming route for side panel."""
+    return StreamingResponse(
+        heatmap_mjpeg_generator(),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
 

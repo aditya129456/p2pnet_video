@@ -438,11 +438,12 @@
     /* Content Layout: Video Left, Analytics Right */
     .workspace-grid {
       display: grid;
-      grid-template-columns: 2fr 1fr;
+      grid-template-columns: minmax(0, 1.8fr) minmax(360px, 1.2fr);
       gap: 20px;
+      align-items: start;
     }
 
-    @media (max-width: 1100px) {
+    @media (max-width: 1200px) {
       .workspace-grid { grid-template-columns: 1fr; }
     }
 
@@ -454,6 +455,8 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      width: 100%;
+      min-width: 0;
     }
 
     .card-header {
@@ -471,6 +474,7 @@
       background: #000;
       width: 100%;
       aspect-ratio: 16 / 9;
+      min-height: 440px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -481,6 +485,29 @@
       width: 100%;
       height: 100%;
       object-fit: contain;
+      display: block;
+    }
+
+    /* Side Panel Heatmap Viewport */
+    .heatmap-viewport {
+      position: relative;
+      background: #0a0f1d;
+      border-radius: 8px;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      width: 100%;
+      min-height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #1e293b;
+    }
+
+    .heatmap-viewport img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
     }
 
     /* Right Sidebar: Zones and Charts */
@@ -794,15 +821,6 @@
             <span>🔴 Head Points</span>
           </label>
 
-          <!-- Live Heatmap Toggle -->
-          <label class="toggle-pill" title="Toggle Real-Time 2D Gaussian Crowd Density Heatmap">
-            <span class="switch">
-              <input type="checkbox" id="toggle-show_heatmap" onchange="onToggleFeature('show_heatmap', this.checked)">
-              <span class="slider"></span>
-            </span>
-            <span>🔥 Live Heatmap</span>
-          </label>
-
         </div>
       </div>
     </div>
@@ -848,8 +866,22 @@
         </div>
       </div>
 
-      <!-- Right: Real-time Zones & Historical Trend -->
+      <!-- Right: Real-time Analytics & Side Visualizations -->
       <div class="analytics-col">
+
+        <!-- Live Crowd Density Heatmap Card (Side Panel) -->
+        <div class="card">
+          <div class="card-header" style="padding: 0 0 10px 0;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>Live Crowd Density Heatmap</span>
+              <span style="font-size: 0.72rem; color: var(--accent); font-weight: 700;">● 2D GAUSSIAN</span>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--emerald); font-weight: 600;">LIVE FEED</span>
+          </div>
+          <div class="heatmap-viewport">
+            <img src="/heatmap_feed" alt="Live Crowd Density Heatmap" id="heatmap-feed-img" onerror="this.src='';">
+          </div>
+        </div>
 
         <!-- Zone Capacities Card -->
         <div class="card">
@@ -1068,6 +1100,17 @@
       }
       if (fsPill) {
         fsPill.style.display = isFs ? 'inline-block' : 'none';
+      }
+
+      // Restore layout dimensions cleanly when exiting fullscreen
+      if (!isFs) {
+        const vcard = document.getElementById('video-card-container');
+        if (vcard) {
+          vcard.style.width = '100%';
+        }
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+        }, 50);
       }
     }
 

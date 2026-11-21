@@ -196,44 +196,55 @@ class ZoneManager:
             "alerting_zones": [name for name, z in results.items() if z["is_alert"]],
         }
 
-    def _render_heatmap(self, frame: np.ndarray, points: Any, w: int, h: int) -> None:
+    @staticmethod
+    def generate_density_heatmap(
+        points: Any,
+        orig_w: int,
+        orig_h: int,
+        out_w: int = 400,
+        out_h: int = 225,
+    ) -> np.ndarray:
         """
-        Fast GPU/CPU-friendly 2D Gaussian density heatmap overlay (~3-5 ms).
-        Accumulates point density, blurs with a separable Gaussian kernel,
-        applies JET colormap, and alpha-blends over high-density crowd clusters.
+        Generate a standalone 2D Gaussian crowd density heatmap matrix
+        on a dark tactical background for side-panel display (~2-4 ms).
         """
-        if points is None or len(points) == 0:
-            return
+        if orig_w <= 0 or orig_h <= 0:
+            orig_w, orig_h = out_w, out_h
 
-        scale = 4 if max(w, h) >= 1000 else 2
-        sh, sw = max(1, h // scale), max(1, w // scale)
-        density = np.zeros((sh, sw), dtype=np.float32)
+        scale_x = out_w / float(orig_w)
+        scale_y = out_h / float(orig_h)
 
-        for p in points:
-            px, py = int(p[0] / scale), int(p[1] / scale)
-            if 0 <= px < sw and 0 <= py < sh:
-                density[py, px] += 1.0
+        density = np.zeros((out_h, out_w), dtype=np.float32)
+        if points is not None and len(points) > 0:
+            for p in points:
+                px, py = int(p[0] * scale_x), int(p[1] * scale_y)
+                if 0 <= px < out_w and 0 <= py < out_h:
+                    density[py, px] += 1.0
 
-        ksize = 25 if scale == 4 else 31
-        sigma = 5.0 if scale == 4 else 6.0
-        density = cv2.GaussianBlur(density, (ksize, ksize), sigma)
-
+        # Fast Gaussian kernel
+        density = cv2.GaussianBlur(density, (25, 25), 5.0)
         max_val = float(density.max())
-        if max_val <= 0.0:
-            return
 
-        # Contrast stretch: hotspots illuminate into warm yellow/red
-        density_norm = np.clip(density / (max_val * 0.70), 0.0, 1.0)
-        density_u8 = (density_norm * 255.0).astype(np.uint8)
+        if max_val > 0.0:
+            density_norm = np.clip(density / (max_val * 0.70), 0.0, 1.0)
+            density_u8 = (density_norm * 255.0).astype(np.uint8)
+        else:
+            density_u8 = np.zeros((out_h, out_w), dtype=np.uint8)
 
-        # Upscale back to frame resolution
-        density_full = cv2.resize(density_u8, (w, h), interpolation=cv2.INTER_LINEAR)
-        heatmap_color = cv2.applyColorMap(density_full, cv2.COLORMAP_JET)
+        heatmap_color = cv2.applyColorMap(density_u8, cv2.COLORMAP_JET)
 
-        # Blend only over active density regions (>12 threshold) to keep empty background crisp
-        mask = (density_full > 12).astype(np.uint8) * 255
-        blended = cv2.addWeighted(frame, 0.45, heatmap_color, 0.55, 0)
-        cv2.copyTo(blended, mask, frame)
+        # Tactical dark navy canvas #0a0f1d
+        output = np.zeros((out_h, out_w, 3), dtype=np.uint8)
+        output[:, :] = (29, 15, 10)
+
+        mask = (density_u8 > 10).astype(np.uint8) * 255
+        cv2.copyTo(heatmap_color, mask, output)
+
+        # Tactical HUD telemetry overlay
+        cv2.putText(output, "CROWD THERMAL DENSITY", (12, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.40, (200, 200, 200), 1, cv2.LINE_AA)
+        cv2.putText(output, f"PEAK: {max_val:.1f} pts/k", (12, out_h - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (6, 182, 212), 1, cv2.LINE_AA)
+
+        return output
 
     def render_overlay(
         self,
@@ -250,19 +261,13 @@ class ZoneManager:
         show_track_ids: bool = True,
         show_zones: bool = True,
         show_points: bool = True,
-        show_heatmap: bool = False,
     ) -> np.ndarray:
         """
         Render a clean, professional surveillance HUD over the video frame.
-        Includes live heatmaps, translucent zone polygons, tripwires, trajectories, badges, alert warnings, and metrics bar.
+        Includes translucent zone polygons, tripwires, trajectories, badges, alert warnings, and metrics bar.
         """
         h, w = frame.shape[:2]
         output = frame.copy()
-
-        # 0. Render Live Crowd Density Heatmap (if enabled)
-        if show_heatmap:
-            pts_for_heat = points if (points is not None and len(points) > 0) else ([t.current_point for t in tracks] if tracks else [])
-            self._render_heatmap(output, pts_for_heat, w, h)
 
         # 1. Render Translucent Polygonal Zones (if enabled)
         if show_zones:
