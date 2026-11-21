@@ -88,6 +88,7 @@ class ServerState:
             "show_tripwires": True,
             "show_points": True,
             "show_track_ids": True,
+            "show_heatmap": False,
         }
         self.latest_telemetry: Dict[str, Any] = {
             "camera_name": "CAM-01-MALL",
@@ -237,6 +238,7 @@ def surveillance_worker(args):
                 show_tripwires = feat.get("show_tripwires", True)
                 show_points = feat.get("show_points", True)
                 show_track_ids = feat.get("show_track_ids", True)
+                show_heatmap = feat.get("show_heatmap", False)
 
                 # 3. Read camera frame
                 ret, frame, frame_ts = stream.read()
@@ -311,6 +313,7 @@ def surveillance_worker(args):
                     show_track_ids=show_track_ids and show_tracking,
                     show_zones=show_zones,
                     show_points=show_points,
+                    show_heatmap=show_heatmap,
                 )
 
                 # 6. Compress to JPEG for Web Stream
