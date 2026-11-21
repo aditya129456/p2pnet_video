@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional
 import cv2
 import uvicorn
 from pydantic import BaseModel
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -29,6 +29,9 @@ logging.basicConfig(
     datefmt="%H:%M:%S"
 )
 logger = logging.getLogger("SurveillanceWeb")
+
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads", "videos")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI(title="DeepCrowd Surveillance Command Center")
 
@@ -82,6 +85,9 @@ class ServerState:
         self.latest_heatmap_jpeg: Optional[bytes] = None
         self.active_model_id: str = "generalist"
         self.model_switch_requested: Optional[str] = None
+        self.active_source: str = ""
+        self.active_source_name: str = "Default Feed"
+        self.source_switch_requested: Optional[str] = None
         self.features: Dict[str, bool] = {
             "show_zones": True,
             "show_tracking": True,
@@ -92,6 +98,7 @@ class ServerState:
         }
         self.latest_telemetry: Dict[str, Any] = {
             "camera_name": "CAM-01-MALL",
+            "active_source_name": "Default Feed",
             "active_model": "generalist",
             "active_model_name": "Generalist Fallback",
             "total_scene_count": 0,
@@ -172,6 +179,8 @@ def surveillance_worker(args):
             break
     with state.lock:
         state.active_model_id = initial_model
+        state.active_source = args.source
+        state.active_source_name = os.path.basename(args.source) if os.path.isfile(args.source) else str(args.source)
 
     # Tracker & Initial Detector
     tracker = KalmanPointTracker(max_distance=args.max_track_dist)
@@ -202,6 +211,22 @@ def surveillance_worker(args):
 
         try:
             while state.running:
+                # 0. Check for requested video source switch
+                with state.lock:
+                    src_req = state.source_switch_requested
+                    state.source_switch_requested = None
+
+                if src_req and os.path.exists(src_req):
+                    logger.info(f"🔄 Switching video feed source -> {src_req}")
+                    args.source = src_req
+                    is_file = os.path.isfile(args.source)
+                    with state.lock:
+                        state.active_source = src_req
+                        state.active_source_name = os.path.basename(src_req)
+                    tracker = KalmanPointTracker(max_distance=args.max_track_dist)
+                    stream.stop()
+                    break
+
                 # 1. Check for requested model switch
                 with state.lock:
                     switch_req = state.model_switch_requested
@@ -328,6 +353,7 @@ def surveillance_worker(args):
                         state.latest_frame_jpeg = jpeg_bytes.tobytes()
                         state.latest_telemetry = {
                             "camera_name": args.camera_name,
+                            "active_source_name": state.active_source_name,
                             "active_model": curr_mid,
                             "active_model_name": AVAILABLE_MODELS.get(curr_mid, {}).get("name", "Unknown"),
                             "total_scene_count": stats.get("total_scene_count", 0),
@@ -464,6 +490,63 @@ async def select_model(req: ModelSelectRequest):
         state.model_switch_requested = req.model_id
     logger.info(f"Model switch requested -> {req.model_id} ({weights_path})")
     return {"status": "ok", "requested_model": req.model_id}
+
+
+@app.post("/api/upload_video")
+async def upload_video(file: UploadFile = File(...)):
+    """Upload a video file (.mp4, .avi, .mkv, .mov) and switch live surveillance processing to it."""
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="No video file provided.")
+
+    valid_exts = {".mp4", ".avi", ".mkv", ".mov", ".webm", ".m4v"}
+    _, ext = os.path.splitext(file.filename.lower())
+    if ext not in valid_exts:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported format '{ext}'. Supported video formats: {', '.join(sorted(valid_exts))}"
+        )
+
+    timestamp_str = time.strftime("%Y%m%d_%H%M%S")
+    clean_base = os.path.basename(file.filename).replace(" ", "_")
+    safe_name = f"upload_{timestamp_str}_{clean_base}"
+    dest_path = os.path.join(UPLOAD_DIR, safe_name)
+
+    try:
+        with open(dest_path, "wb") as f_out:
+            while chunk := await file.read(1024 * 1024):  # 1MB chunks
+                f_out.write(chunk)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save video: {e}")
+
+    # Validate video with OpenCV
+    cap = cv2.VideoCapture(dest_path)
+    if not cap.isOpened():
+        cap.release()
+        if os.path.exists(dest_path):
+            os.remove(dest_path)
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid video or codec is unsupported.")
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    cap.release()
+
+    # Request dynamic stream switch
+    with state.lock:
+        state.source_switch_requested = dest_path
+        state.active_source_name = file.filename
+
+    logger.info(f"✅ Video uploaded -> {dest_path} ({w}x{h}, {fps:.1f} FPS, {total_frames} frames). Switched live stream!")
+
+    return {
+        "status": "ok",
+        "filename": file.filename,
+        "saved_path": dest_path,
+        "resolution": f"{w}x{h}",
+        "fps": round(fps, 1),
+        "total_frames": total_frames,
+    }
 
 
 @app.get("/api/features")

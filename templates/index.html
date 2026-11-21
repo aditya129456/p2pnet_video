@@ -246,6 +246,54 @@
       color: var(--warning);
     }
 
+    /* Video Upload Button & Badges */
+    .btn-upload {
+      background: #182234;
+      color: var(--accent);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-upload:hover {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: var(--accent);
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+    }
+
+    .upload-badge {
+      font-size: 0.78rem;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--emerald);
+      color: var(--emerald);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .upload-badge.loading {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: var(--warning);
+      color: var(--warning);
+    }
+
+    .upload-badge.error {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: var(--alert-red);
+      color: #fca5a5;
+    }
+
     .toggles-group {
       display: flex;
       align-items: center;
@@ -772,7 +820,7 @@
     <div class="controls-card">
       <div class="controls-row">
         
-        <!-- Model Selection Dropdown -->
+        <!-- Model Selection Dropdown & Video Upload -->
         <div class="model-group">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 1.15rem;">🧠</span>
@@ -785,6 +833,15 @@
             <option value="supercrowd">🏟️ Supercrowd Specialist (Stadiums, Concerts & Rallies)</option>
           </select>
           <span id="model-status-pill" class="model-badge">● Active Model</span>
+
+          <!-- Video File Upload Trigger -->
+          <div style="display: flex; align-items: center; gap: 8px; margin-left: 6px;">
+            <input type="file" id="video-file-input" accept="video/mp4,video/avi,video/mkv,video/mov,video/webm" style="display:none;" onchange="handleVideoUpload(this)">
+            <button class="btn-upload" onclick="document.getElementById('video-file-input').click()" title="Upload a local video file (.mp4, .avi, .mkv) for AI crowd analysis">
+              📁 Upload Video
+            </button>
+            <span id="upload-status-badge" class="upload-badge" style="display:none;"></span>
+          </div>
         </div>
 
         <!-- Vision Feature Toggles -->
@@ -849,7 +906,10 @@
         <div class="video-card" id="video-card-container">
           <div class="card-header">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span>Live Surveillance Feed (AI HUD Active)</span>
+              <span>Live Surveillance Feed</span>
+              <span id="source-badge" class="model-badge" style="background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.4); color: var(--emerald); font-size: 0.74rem;">
+                Feed: <strong id="current-source-label" style="margin-left: 3px;">mall_crowd_test.mp4</strong>
+              </span>
               <span id="fullscreen-pill" class="fs-live-badge" style="display: none;">⛶ FULLSCREEN</span>
             </div>
             <div style="display: flex; align-items: center; gap: 12px;">
@@ -1142,6 +1202,75 @@
     document.addEventListener('mozfullscreenchange', onFullScreenChange);
     document.addEventListener('MSFullscreenChange', onFullScreenChange);
 
+    // Video Upload Handlers & Drag-and-Drop
+    async function handleVideoUpload(input) {
+      if (!input.files || input.files.length === 0) return;
+      const file = input.files[0];
+      await uploadVideoFile(file);
+      input.value = '';
+    }
+
+    async function uploadVideoFile(file) {
+      const badge = document.getElementById('upload-status-badge');
+      if (badge) {
+        badge.style.display = 'inline-flex';
+        badge.className = 'upload-badge loading';
+        badge.innerText = `⏳ Uploading ${file.name}...`;
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const resp = await fetch('/api/upload_video', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          if (badge) {
+            badge.className = 'upload-badge';
+            badge.innerText = `✅ Loaded: ${data.filename}`;
+          }
+          const srcLabel = document.getElementById('current-source-label');
+          if (srcLabel) srcLabel.innerText = data.filename;
+          setTimeout(() => {
+            if (badge) badge.style.display = 'none';
+          }, 4500);
+        } else {
+          if (badge) {
+            badge.className = 'upload-badge error';
+            badge.innerText = `❌ ${data.detail || 'Upload failed'}`;
+          }
+        }
+      } catch (e) {
+        console.error('Upload failed', e);
+        if (badge) {
+          badge.className = 'upload-badge error';
+          badge.innerText = '❌ Network Error';
+        }
+      }
+    }
+
+    // Drag and Drop Upload Support on Video Viewport
+    const videoVp = document.getElementById('video-viewport');
+    if (videoVp) {
+      videoVp.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        videoVp.style.outline = '3px dashed var(--accent)';
+      });
+      videoVp.addEventListener('dragleave', () => {
+        videoVp.style.outline = 'none';
+      });
+      videoVp.addEventListener('drop', (e) => {
+        e.preventDefault();
+        videoVp.style.outline = 'none';
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          uploadVideoFile(e.dataTransfer.files[0]);
+        }
+      });
+    }
+
     loadModels();
     loadFeatures();
 
@@ -1179,6 +1308,14 @@
       if (fsFps) fsFps.innerText = (data.fps || 0).toFixed(1);
       const fsModel = document.getElementById('fs-model-name');
       if (fsModel && data.active_model_name) fsModel.innerText = data.active_model_name;
+
+      // Active video source sync
+      if (data.active_source_name) {
+        const srcLabel = document.getElementById('current-source-label');
+        if (srcLabel && srcLabel.innerText !== data.active_source_name) {
+          srcLabel.innerText = data.active_source_name;
+        }
+      }
 
       // Model sync
       if (data.active_model) {

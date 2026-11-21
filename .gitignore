@@ -67,6 +67,7 @@ prediction/heatmaps/*
 !prediction/heatmaps/.gitkeep
 logs/
 runs/
+uploads/
 
 # Allow keeping empty directories
 !.gitkeep
