@@ -3,7 +3,7 @@ Surveillance Module for Real-Time Crowd Counting, Localization, Spatial Analytic
 """
 
 from .stream import ThreadedCameraStream
-from .detector import CrowdDetector
+from .detector import CrowdDetector, get_optimal_threshold
 from .zones import SurveillanceZone, ZoneManager
 from .tracker import KalmanPointTracker, TrackedPerson
 from .tripwire import VirtualTripwire, TripwireManager
@@ -14,6 +14,7 @@ from .alerts import AlertRuleEngine
 __all__ = [
     "ThreadedCameraStream",
     "CrowdDetector",
+    "get_optimal_threshold",
     "SurveillanceZone",
     "ZoneManager",
     "KalmanPointTracker",

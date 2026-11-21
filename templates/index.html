@@ -268,6 +268,30 @@
       box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
     }
 
+    .btn-webcam {
+      background: #10261f;
+      color: var(--emerald);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+    }
+
+    .btn-webcam:hover {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: var(--emerald);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+    }
+
+    .btn-sample {
+      background: #241b35;
+      color: #c084fc;
+      border: 1px solid rgba(192, 132, 252, 0.4);
+    }
+
+    .btn-sample:hover {
+      background: rgba(192, 132, 252, 0.2);
+      border-color: #c084fc;
+      box-shadow: 0 0 10px rgba(192, 132, 252, 0.35);
+    }
+
     .upload-badge {
       font-size: 0.78rem;
       padding: 4px 10px;
@@ -834,11 +858,30 @@
           </select>
           <span id="model-status-pill" class="model-badge">● Active Model</span>
 
-          <!-- Video File Upload Trigger -->
-          <div style="display: flex; align-items: center; gap: 8px; margin-left: 6px;">
+          <!-- Video Source Controls (Upload Video, Live Webcam Selector, Sample Feed) -->
+          <div style="display: flex; align-items: center; gap: 8px; margin-left: 6px; flex-wrap: wrap;">
             <input type="file" id="video-file-input" accept="video/mp4,video/avi,video/mkv,video/mov,video/webm" style="display:none;" onchange="handleVideoUpload(this)">
             <button class="btn-upload" onclick="document.getElementById('video-file-input').click()" title="Upload a local video file (.mp4, .avi, .mkv) for AI crowd analysis">
               📁 Upload Video
+            </button>
+            
+            <!-- Interactive Webcam Device Selector -->
+            <div class="webcam-control-group" style="display: inline-flex; align-items: center; gap: 6px; background: #0c1a16; border: 1px solid rgba(16, 185, 129, 0.45); border-radius: 8px; padding: 3px 8px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);">
+              <span style="font-size: 0.95rem;">📷</span>
+              <select id="webcam-device-select" class="webcam-dropdown" style="background: #13241f; color: #a7f3d0; border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; font-size: 0.82rem; font-weight: 700; outline: none; cursor: pointer; padding: 4px 6px;">
+                <option value="1" selected>Camera 1 (External USB) ⭐</option>
+                <option value="0">Camera 0 (Integrated)</option>
+              </select>
+              <button class="btn-webcam-connect" onclick="onConnectWebcam()" title="Connect to the selected camera" style="background: rgba(16, 185, 129, 0.25); color: #ecfdf5; border: 1px solid var(--emerald); padding: 5px 11px; border-radius: 6px; font-size: 0.80rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(16, 185, 129, 0.45)'" onmouseout="this.style.background='rgba(16, 185, 129, 0.25)'">
+                ▶ Connect
+              </button>
+              <button onclick="refreshWebcamList()" title="Rescan available camera devices" style="background: transparent; border: none; color: var(--emerald); cursor: pointer; padding: 2px 4px; font-size: 0.95rem; line-height: 1;">
+                🔄
+              </button>
+            </div>
+
+            <button class="btn-upload btn-sample" id="btn-sample" onclick="switchToDefaultVideo()" title="Switch back to sample surveillance video">
+              ⏮️ Sample Feed
             </button>
             <span id="upload-status-badge" class="upload-badge" style="display:none;"></span>
           </div>
@@ -1252,6 +1295,130 @@
       }
     }
 
+    async function refreshWebcamList() {
+      const select = document.getElementById('webcam-device-select');
+      if (!select) return;
+
+      try {
+        const resp = await fetch('/api/source/webcams');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const cameras = data.cameras || [];
+        if (cameras.length === 0) return;
+
+        const currentVal = parseInt(select.value, 10);
+        select.innerHTML = '';
+
+        cameras.forEach(cam => {
+          const opt = document.createElement('option');
+          opt.value = cam.index;
+          let label = cam.name;
+          if (cam.index === 1) {
+            label = `Camera 1 (External USB) ⭐`;
+          } else if (cam.index === 0) {
+            label = `Camera 0 (Integrated)`;
+          }
+          if (cam.resolution) label += ` [${cam.resolution}]`;
+          opt.innerText = label;
+          select.appendChild(opt);
+        });
+
+        // Default to Camera 1 (External USB) or recommended index
+        const defaultIdx = data.default_recommended_index !== undefined ? data.default_recommended_index : 1;
+        if (cameras.some(c => c.index === currentVal)) {
+          select.value = currentVal;
+        } else if (cameras.some(c => c.index === defaultIdx)) {
+          select.value = defaultIdx;
+        }
+      } catch (e) {
+        console.warn('Failed to scan camera devices', e);
+      }
+    }
+
+    function onConnectWebcam() {
+      const select = document.getElementById('webcam-device-select');
+      const camIdx = select ? parseInt(select.value, 10) : 1;
+      switchToWebcam(isNaN(camIdx) ? 1 : camIdx);
+    }
+
+    async function switchToWebcam(cameraIndex = 1) {
+      const badge = document.getElementById('upload-status-badge');
+      if (badge) {
+        badge.style.display = 'inline-flex';
+        badge.className = 'upload-badge loading';
+        badge.innerText = `📷 Connecting to Webcam (Device ${cameraIndex})...`;
+      }
+
+      try {
+        const resp = await fetch('/api/source/webcam', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ camera_index: cameraIndex })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          if (badge) {
+            badge.className = 'upload-badge';
+            badge.innerText = `✅ Live: ${data.name}`;
+          }
+          const srcLabel = document.getElementById('current-source-label');
+          if (srcLabel) srcLabel.innerText = data.name;
+          setTimeout(() => {
+            if (badge) badge.style.display = 'none';
+          }, 3500);
+        } else {
+          if (badge) {
+            badge.className = 'upload-badge error';
+            badge.innerText = `❌ ${data.detail || 'Webcam error'}`;
+          }
+        }
+      } catch (e) {
+        console.error('Webcam switch failed', e);
+        if (badge) {
+          badge.className = 'upload-badge error';
+          badge.innerText = `❌ Connection Error: ${e.message}`;
+        }
+      }
+    }
+
+    async function switchToDefaultVideo() {
+      const badge = document.getElementById('upload-status-badge');
+      if (badge) {
+        badge.style.display = 'inline-flex';
+        badge.className = 'upload-badge loading';
+        badge.innerText = '⏳ Resetting to Sample Feed...';
+      }
+
+      try {
+        const resp = await fetch('/api/source/default', {
+          method: 'POST'
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          if (badge) {
+            badge.className = 'upload-badge';
+            badge.innerText = `✅ Sample Feed Active`;
+          }
+          const srcLabel = document.getElementById('current-source-label');
+          if (srcLabel) srcLabel.innerText = data.source_name;
+          setTimeout(() => {
+            if (badge) badge.style.display = 'none';
+          }, 3500);
+        } else {
+          if (badge) {
+            badge.className = 'upload-badge error';
+            badge.innerText = '❌ Failed to reset feed';
+          }
+        }
+      } catch (e) {
+        console.error('Reset feed failed', e);
+        if (badge) {
+          badge.className = 'upload-badge error';
+          badge.innerText = '❌ Network Error';
+        }
+      }
+    }
+
     // Drag and Drop Upload Support on Video Viewport
     const videoVp = document.getElementById('video-viewport');
     if (videoVp) {
@@ -1294,6 +1461,7 @@
       };
     }
     connectWS();
+    refreshWebcamList();
 
     function updateDashboard(data) {
       // 1. Metric Numbers

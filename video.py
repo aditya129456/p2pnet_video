@@ -23,7 +23,8 @@ def get_args_parser():
     parser.add_argument('--backbone', default='vgg16_bn', type=str,
                         help="name of the convolutional backbone to use")
 
-    parser.add_argument('--threshold', default=0.5,type=float)
+    parser.add_argument('--threshold', default=None, type=float,
+                        help="confidence threshold (default: auto per model: 0.45 confined, 0.60 supercrowd, 0.50 others)")
 
     parser.add_argument('--row', default=2, type=int,
                         help="row number of anchor points")
@@ -65,6 +66,11 @@ def main(args, debug=False):
         model.load_state_dict(checkpoint['model'])
     # convert to eval mode
     model.eval()
+
+    from surveillance.detector import get_optimal_threshold
+    active_threshold = args.threshold if args.threshold is not None else get_optimal_threshold(args.weight_path or "")
+    print(f"Active Headcount Threshold: {active_threshold}")
+
     # create the pre-processing transform
     transform = standard_transforms.Compose([
         standard_transforms.ToTensor(), 
@@ -132,7 +138,7 @@ def main(args, debug=False):
         outputs_scores = torch.nn.functional.softmax(outputs['pred_logits'], -1)[:, :, 1][0]
         outputs_points = outputs['pred_points'][0]
 
-        threshold = args.threshold
+        threshold = active_threshold
         points = outputs_points[outputs_scores > threshold].detach().cpu().numpy().tolist()
 
         # draw predictions

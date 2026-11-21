@@ -1,5 +1,6 @@
 import time
 import types
+from pathlib import Path
 from typing import List, Tuple, Optional, Union
 import numpy as np
 import torch
@@ -8,6 +9,27 @@ from PIL import Image
 import cv2
 
 from models import build_model
+
+
+def get_optimal_threshold(weight_path: Union[str, Path], default: float = 0.5) -> float:
+    """
+    Return the empirically verified confidence threshold for most accurate headcount
+    (minimum MAE and zero-bias) based on native dataset evaluation:
+      - Confined-Space Specialist: 0.45 (Min MAE: 2.30 on specialist_confined)
+      - Supercrowd Specialist:     0.60 (Min MAE: 90.84, Unbiased on specialist_supercrowd)
+      - Large-Area Specialist:     0.50 (Min MAE: 2.62 on Mall)
+      - Generalist Fallback:       0.50 (General baseline)
+    """
+    wp = str(weight_path).lower()
+    if "confined" in wp:
+        return 0.45
+    elif "supercrowd" in wp:
+        return 0.60
+    elif "large_area" in wp:
+        return 0.50
+    elif "best_mae" in wp or "generalist" in wp:
+        return 0.50
+    return default
 
 
 class CrowdDetector:
@@ -24,7 +46,7 @@ class CrowdDetector:
     def __init__(
         self,
         weight_path: str = "./weights/best_mae.pth",
-        confidence_threshold: float = 0.5,
+        confidence_threshold: Optional[float] = None,
         backbone: str = "vgg16_bn",
         row: int = 2,
         line: int = 2,
@@ -36,7 +58,7 @@ class CrowdDetector:
         """
         Args:
             weight_path: Path to PyTorch model weights checkpoint.
-            confidence_threshold: Confidence cutoff for head detections.
+            confidence_threshold: Confidence cutoff for head detections. If None, auto-selects optimal headcount threshold.
             backbone: Backbone name (default: vgg16_bn).
             row: Row number of anchor points.
             line: Line number of anchor points.
@@ -46,7 +68,10 @@ class CrowdDetector:
             max_dimension: Maximum dimension cap before scaling down.
         """
         self.weight_path = weight_path
-        self.confidence_threshold = confidence_threshold
+        if confidence_threshold is None:
+            self.confidence_threshold = get_optimal_threshold(weight_path)
+        else:
+            self.confidence_threshold = float(confidence_threshold)
         self.max_dimension = max_dimension
         self.precision = precision.lower()
         self.use_cuda_graph = use_cuda_graph

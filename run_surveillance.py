@@ -34,6 +34,14 @@ def get_args():
         help="Input video source: RTSP stream URL, camera index (0), or video file path."
     )
     parser.add_argument(
+        "--webcam",
+        nargs="?",
+        const=1,
+        default=None,
+        type=int,
+        help="Start directly using webcam index (e.g. --webcam 1 for external USB, or --webcam for camera 1)."
+    )
+    parser.add_argument(
         "--weights",
         default="./weights/best_mae.pth",
         help="Path to trained P2PNet model checkpoint."
@@ -60,9 +68,9 @@ def get_args():
     )
     parser.add_argument(
         "--threshold",
-        default=0.5,
+        default=None,
         type=float,
-        help="Point confidence threshold (default: 0.5)."
+        help="Point confidence threshold (default: auto-fixed per model for optimal headcount: 0.45 confined, 0.60 supercrowd, 0.50 others)."
     )
     parser.add_argument(
         "--camera-name",
@@ -133,7 +141,10 @@ def get_args():
         action="store_true",
         help="Enable CUDA Graph capture and replay for ultra-low launch latency."
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.webcam is not None:
+        args.source = args.webcam
+    return args
 
 
 class EventLogger:
@@ -251,6 +262,7 @@ def main():
         precision=args.precision,
         use_cuda_graph=args.cuda_graph,
     )
+    logger.info(f"Loaded crowd model '{args.weights}' | Active Headcount Threshold: {detector.confidence_threshold}")
 
     # 9. Initialize Threaded Video Stream
     logger.info(f"Opening threaded camera stream from: {args.source}")

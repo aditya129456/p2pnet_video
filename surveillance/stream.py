@@ -100,12 +100,17 @@ class ThreadedCameraStream:
 
         logger.info(f"Connecting to video source: {self.source}")
         
-        # Configure backend hints for RTSP streams
+        # Configure backend hints for RTSP streams or USB webcams
         if isinstance(self.source, str) and self.source.startswith("rtsp://"):
             # Set transport to TCP to prevent UDP packet drop artifacts
             # and minimize OpenCV buffer size
             self.cap = cv2.VideoCapture(self.source, cv2.CAP_FFMPEG)
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        elif isinstance(self.source, int):
+            # USB Webcam on Windows: CAP_DSHOW provides fast startup and stable DirectShow access
+            self.cap = cv2.VideoCapture(self.source, cv2.CAP_DSHOW) if hasattr(cv2, "CAP_DSHOW") else cv2.VideoCapture(self.source)
+            if not self.cap or not self.cap.isOpened():
+                self.cap = cv2.VideoCapture(self.source)
         else:
             self.cap = cv2.VideoCapture(self.source)
 
@@ -148,6 +153,7 @@ class ThreadedCameraStream:
     def _capture_worker(self):
         """Worker thread loop continuously reading frames from the capture device."""
         reconnect_attempts = 0
+        consecutive_read_failures = 0
         min_frame_time = (1.0 / self.target_fps) if self.target_fps else 0.0
 
         while self.running:
@@ -169,6 +175,7 @@ class ThreadedCameraStream:
                 time.sleep(self.reconnect_interval_sec)
                 if self._initialize_capture():
                     reconnect_attempts = 0
+                    consecutive_read_failures = 0
                 continue
 
             # Read frame
@@ -176,14 +183,21 @@ class ThreadedCameraStream:
 
             if not ret or frame is None:
                 if self.is_live:
-                    logger.warning("Frame read failure on live stream. Triggering reconnect...")
+                    consecutive_read_failures += 1
+                    # Webcams or network streams may drop transient frames during sensor warmup or network jitter
+                    if consecutive_read_failures < 15:
+                        time.sleep(0.04)
+                        continue
+                    logger.warning("Multiple consecutive frame read failures on live stream. Triggering reconnect...")
                     self.is_connected = False
+                    consecutive_read_failures = 0
                     continue
                 else:
                     # End of file reached
                     logger.info("End of video stream reached.")
                     break
 
+            consecutive_read_failures = 0
             self.total_frames_read += 1
             now = time.time()
 
