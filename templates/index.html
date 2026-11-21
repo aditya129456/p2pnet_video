@@ -448,6 +448,20 @@
     }
 
     /* Video Player Card */
+    .video-col {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      min-width: 0;
+      width: 100%;
+    }
+
+    .zones-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
     .video-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
@@ -828,42 +842,61 @@
     <!-- Workspace Grid -->
     <div class="workspace-grid">
 
-      <!-- Left: Live Surveillance Video Stream -->
-      <div class="video-card" id="video-card-container">
-        <div class="card-header">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span>Live Surveillance Feed (AI HUD Active)</span>
-            <span id="fullscreen-pill" class="fs-live-badge" style="display: none;">⛶ FULLSCREEN</span>
+      <!-- Left Column: Video Feed & Zone Capacities -->
+      <div class="video-col">
+
+        <!-- Live Surveillance Video Stream -->
+        <div class="video-card" id="video-card-container">
+          <div class="card-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>Live Surveillance Feed (AI HUD Active)</span>
+              <span id="fullscreen-pill" class="fs-live-badge" style="display: none;">⛶ FULLSCREEN</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-size: 0.8rem; color: var(--emerald); font-weight: 500;">● Real-Time MJPEG Stream</span>
+              <button id="fullscreen-toggle-btn" onclick="toggleFullScreen()" class="btn-fullscreen" title="Toggle Fullscreen (or Double-Click Video)">
+                ⛶ Fullscreen
+              </button>
+            </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-size: 0.8rem; color: var(--emerald); font-weight: 500;">● Real-Time MJPEG Stream</span>
-            <button id="fullscreen-toggle-btn" onclick="toggleFullScreen()" class="btn-fullscreen" title="Toggle Fullscreen (or Double-Click Video)">
-              ⛶ Fullscreen
-            </button>
+          <div class="video-viewport" id="video-viewport" ondblclick="toggleFullScreen()" title="Double click to toggle Fullscreen">
+            <img src="/video_feed" alt="Surveillance Stream" id="stream-img" onerror="this.src='';">
+            
+            <!-- Fullscreen Floating HUD Overlay -->
+            <div id="fs-floating-bar" class="fs-floating-bar">
+              <div class="fs-stat-chip">
+                <span style="color: var(--text-muted);">Model:</span>
+                <strong id="fs-model-name" style="color: var(--accent);">Generalist</strong>
+              </div>
+              <div class="fs-stat-chip">
+                <span style="color: var(--text-muted);">Occupancy:</span>
+                <strong id="fs-headcount" style="color: #10b981;">0</strong>
+              </div>
+              <div class="fs-stat-chip">
+                <span style="color: var(--text-muted);">Speed:</span>
+                <strong id="fs-fps">0.0</strong> FPS
+              </div>
+              <button onclick="toggleFullScreen()" class="btn-fullscreen-exit" title="Exit Fullscreen (Esc)">
+                ✕ Exit Fullscreen
+              </button>
+            </div>
           </div>
         </div>
-        <div class="video-viewport" id="video-viewport" ondblclick="toggleFullScreen()" title="Double click to toggle Fullscreen">
-          <img src="/video_feed" alt="Surveillance Stream" id="stream-img" onerror="this.src='';">
-          
-          <!-- Fullscreen Floating HUD Overlay -->
-          <div id="fs-floating-bar" class="fs-floating-bar">
-            <div class="fs-stat-chip">
-              <span style="color: var(--text-muted);">Model:</span>
-              <strong id="fs-model-name" style="color: var(--accent);">Generalist</strong>
+
+        <!-- Monitored Zone Capacities Card (Under Video Feed) -->
+        <div class="card" id="zones-card">
+          <div class="card-header" style="padding: 0 0 10px 0;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>Monitored Zone Capacities</span>
+              <span style="font-size: 0.72rem; color: var(--accent); font-weight: 700;">● REAL-TIME LIMITS</span>
             </div>
-            <div class="fs-stat-chip">
-              <span style="color: var(--text-muted);">Occupancy:</span>
-              <strong id="fs-headcount" style="color: #10b981;">0</strong>
-            </div>
-            <div class="fs-stat-chip">
-              <span style="color: var(--text-muted);">Speed:</span>
-              <strong id="fs-fps">0.0</strong> FPS
-            </div>
-            <button onclick="toggleFullScreen()" class="btn-fullscreen-exit" title="Exit Fullscreen (Esc)">
-              ✕ Exit Fullscreen
-            </button>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Spatial Polygon Occupancy</span>
+          </div>
+          <div id="zones-container" class="zones-grid">
+            <div style="color: var(--text-muted); font-size: 0.85rem;">Loading zones...</div>
           </div>
         </div>
+
       </div>
 
       <!-- Right: Real-time Analytics & Side Visualizations -->
@@ -880,16 +913,6 @@
           </div>
           <div class="heatmap-viewport">
             <img src="/heatmap_feed" alt="Live Crowd Density Heatmap" id="heatmap-feed-img" onerror="this.src='';">
-          </div>
-        </div>
-
-        <!-- Zone Capacities Card -->
-        <div class="card">
-          <div class="card-header" style="padding: 0 0 10px 0;">
-            <span>Monitored Zone Capacities</span>
-          </div>
-          <div id="zones-container" style="display: flex; flex-direction: column; gap: 14px;">
-            <div style="color: var(--text-muted); font-size: 0.85rem;">Loading zones...</div>
           </div>
         </div>
 
