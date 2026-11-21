@@ -48,9 +48,7 @@ Thumbs.db
 *.mov
 
 # Datasets (large raw images and annotations)
-dataset/ShanghaiTech/
-dataset/mall_dataset/
-dataset/Jhu-Crowd++/
+dataset/
 data/
 *.zip
 *.tar
